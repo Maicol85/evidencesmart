@@ -980,7 +980,7 @@ function actualizarActionButtons() {
       btn2.className = 'action-btn';
       btn2.id = 'btn-analizar-2';
       btn2.onclick = () => analizarPaper(1);
-      btn2.innerHTML = `🔬 Analizar Paper 2<div class="action-btn-sub">"${p1.titulo.substring(0,28)}${p1.titulo.length>28?'...':''}"</div>`;
+      btn2.innerHTML = `🔬 Analizar Paper 2<div class="action-btn-sub">"${escHtml(p1.titulo.substring(0,28))}${p1.titulo.length>28?'...':''}"</div>`;
       grid.appendChild(btn2);
     }
   }
