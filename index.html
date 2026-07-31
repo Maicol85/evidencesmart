@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EvidenceSmart — CeiboMed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#f0f2f5;color:#0f1923;min-height:100vh}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Colores ── */
+:root{
+  --bg:#f0f2f5;--surface:#ffffff;--ink:#0f1923;--inkSoft:#3d4f5c;--inkMuted:#7a8d99;
+  --accent:#1a5276;--accentLt:#d6eaf8;--accentMid:#2980b9;
+  --gold:#b7950b;--goldLt:#fef9e7;
+  --success:#1e8449;--successLt:#d5f5e3;
+  --warn:#b7770d;--warnLt:#fef3cd;
+  --danger:#922b21;--dangerLt:#fadbd8;
+  --border:#dce3e8;--shadow:0 2px 12px rgba(15,25,35,0.08)
+}
+
+/* ── Layout ── */
+#app{display:flex;flex-direction:column;min-height:100vh}
+header{background:var(--ink);padding:11px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(0,0,0,0.25)}
+.logo-main{font-family:Georgia,serif;font-size:1.35rem;color:#fff;letter-spacing:-.5px}
+.logo-main span{color:#4db6e8}
+.logo-sub{font-size:.57rem;color:rgba(255,255,255,.38);letter-spacing:2.5px;text-transform:uppercase;margin-top:2px}
+.header-right{display:flex;align-items:center;gap:10px}
+#api-bar{display:flex;gap:6px;align-items:center}
+#api-bar input{padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:.78rem;width:165px;outline:none;font-family:inherit}
+#api-bar button{background:#4db6e8;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:.78rem;cursor:pointer;font-weight:700}
+#api-active{display:none;gap:8px;align-items:center}
+.chip-ia{background:rgba(77,182,232,.15);border:1px solid rgba(77,182,232,.35);color:#4db6e8;padding:4px 12px;border-radius:20px;font-size:.72rem;font-weight:600}
+.chip-credits{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);padding:4px 10px;border-radius:20px;font-size:.72rem}
+#btn-desconectar{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.4);border-radius:6px;padding:4px 9px;font-size:.72rem;cursor:pointer}
+#api-warning{background:#fff8e1;padding:8px 20px;font-size:.8rem;color:#7a5c00;text-align:center;border-bottom:1px solid #f0c040}
+
+.body-wrap{display:flex;flex:1}
+
+/* ── Nav lateral ── */
+nav{width:185px;background:var(--surface);border-right:1px solid var(--border);flex-shrink:0;overflow-y:auto;max-height:calc(100vh - 52px);position:sticky;top:52px}
+.nav-group{padding:8px 14px 3px;font-size:.58rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--inkMuted);margin-top:8px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:9px 16px;cursor:pointer;border-left:3px solid transparent;color:var(--inkSoft);font-size:.82rem;transition:all .15s;user-select:none}
+.nav-item:hover{background:#f5faff;color:var(--accent)}
+.nav-item.active{border-left-color:#4db6e8;background:#e8f7fd;color:var(--accent)}
+.nav-item .nav-badge{margin-left:auto;font-size:.65rem;background:var(--successLt);color:var(--success);padding:1px 6px;border-radius:10px;font-weight:700}
+
+/* ── Main ── */
+main{flex:1;padding:20px;overflow-y:auto;max-height:calc(100vh - 52px)}
+
+/* ── Cards y componentes ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;box-shadow:var(--shadow);animation:fadeIn .25s ease}
+.card-title{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.card-title .icon{font-size:1.1rem}
+.card-title .title{font-family:Georgia,serif;font-size:1.05rem;color:var(--ink)}
+.badge{background:var(--accentLt);color:var(--accent);padding:2px 9px;border-radius:12px;font-size:.72rem;font-weight:600;margin-left:6px}
+.badge.verde{background:var(--successLt);color:var(--success)}
+.badge.amarillo{background:var(--warnLt);color:var(--warn)}
+.badge.rojo{background:var(--dangerLt);color:var(--danger)}
+.card-desc{font-size:.75rem;color:var(--inkMuted);margin-bottom:16px}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;border-radius:7px;font-size:.85rem;font-weight:600;cursor:pointer;border:none;transition:all .2s;font-family:inherit}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover:not(:disabled){background:#154360}
+.btn-secondary{background:var(--bg);color:var(--inkSoft);border:1px solid var(--border)}
+.btn-secondary:hover:not(:disabled){background:#e8f0f5}
+.btn-gold{background:#c9a84c;color:#fff}
+.btn-gold:hover:not(:disabled){background:#b7950b}
+.btn-danger{background:var(--dangerLt);color:var(--danger)}
+.btn-sm{padding:5px 13px;font-size:.78rem}
+.btn-full{width:100%;justify-content:center}
+
+/* Alertas */
+.alert{border-radius:8px;padding:10px 14px;font-size:.82rem;line-height:1.6;margin-top:10px}
+.alert-info{background:var(--accentLt);border:1px solid var(--accentMid);color:var(--accent)}
+.alert-warn{background:var(--warnLt);border:1px solid var(--warn);color:var(--warn)}
+.alert-success{background:var(--successLt);border:1px solid var(--success);color:var(--success)}
+.alert-danger{background:var(--dangerLt);border:1px solid var(--danger);color:var(--danger)}
+
+/* Respuesta IA */
+.ia-response{background:linear-gradient(135deg,#eaf4fb,#f7fbfe);border:1px solid var(--accentLt);border-left:4px solid var(--accentMid);border-radius:0 10px 10px 0;padding:16px 18px;margin-top:14px;animation:fadeIn .3s ease}
+.ia-response-label{font-size:.62rem;font-weight:700;letter-spacing:2px;color:var(--accentMid);text-transform:uppercase;margin-bottom:10px}
+.ia-response-text{font-size:.83rem;color:var(--inkSoft);line-height:1.75;white-space:pre-wrap}
+.ia-loading{display:flex;align-items:center;gap:8px;padding:14px;color:var(--accentMid);font-size:.82rem;margin-top:12px}
+.ia-spinner{width:14px;height:14px;border:2px solid var(--accentLt);border-top-color:var(--accentMid);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+
+/* Conceptos clave */
+.key-concepts{margin-top:12px;background:linear-gradient(135deg,var(--accentLt),#f0f8ff);border:1px solid var(--accentLt);border-radius:8px;padding:10px 14px}
+.key-concepts-label{font-size:.6rem;font-weight:700;letter-spacing:1.5px;color:var(--accentMid);text-transform:uppercase;margin-bottom:8px}
+.key-concepts-chips{display:flex;flex-wrap:wrap;gap:6px}
+.concept-chip{background:var(--surface);border:1px solid var(--accentMid);color:var(--accent);padding:4px 11px;border-radius:12px;font-size:.74rem;font-weight:600;cursor:pointer;transition:all .15s}
+.concept-chip:hover{background:var(--accentMid);color:#fff}
+
+/* BlockInfo (fórmulas, ejemplos, alertas) */
+.block-info{border-left:3px solid var(--accentMid);padding:8px 12px;border-radius:0 6px 6px 0;margin-top:8px;font-size:.79rem;line-height:1.6}
+.block-info.f{background:#f5f7f9;color:var(--accent);font-family:ui-monospace,Menlo,monospace}
+.block-info.ej{background:var(--accentLt);color:var(--accent)}
+.block-info.ojo{background:var(--warnLt);border-left-color:var(--warn);color:var(--warn)}
+.block-info-label{font-weight:700;font-size:.6rem;letter-spacing:1px;text-transform:uppercase;opacity:.75;margin-right:6px}
+
+/* ── Upload ── */
+.upload-hero{background:linear-gradient(135deg,var(--ink),#1a3a5c);color:#fff;border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.upload-hero-icon{font-size:1.8rem;text-align:right}
+.upload-hero-sub{font-size:.65rem;color:rgba(255,255,255,.4);margin-top:2px}
+.papers-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.paper-slot{background:var(--surface);border-radius:14px;overflow:hidden;transition:border .2s}
+.paper-slot-header{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:700}
+.paper-slot-body{padding:14px}
+.mode-tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:10px}
+.mode-tab{padding:7px 4px;border-radius:7px;cursor:pointer;text-align:center;font-size:.75rem;font-weight:600;border:1px solid var(--border);transition:all .15s;background:var(--bg);color:var(--inkSoft)}
+.mode-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.drop-zone{border:2px dashed var(--border);border-radius:10px;padding:22px 12px;text-align:center;cursor:pointer;background:var(--bg);transition:border .2s}
+.drop-zone:hover{border-color:var(--accentMid)}
+.drop-zone.loaded{border-color:var(--success);border-style:solid}
+.drop-zone-icon{font-size:2rem;margin-bottom:6px}
+.drop-zone-label{font-size:.85rem;font-weight:600;color:var(--ink)}
+.drop-zone-sub{font-size:.7rem;color:var(--inkMuted);margin-top:4px}
+textarea.paper-text{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:9px;font-size:.8rem;resize:vertical;min-height:110px;background:var(--bg);line-height:1.55;outline:none;font-family:inherit}
+textarea.paper-text:focus{border-color:var(--accentMid)}
+.paper-loaded-info .paper-title{font-size:.88rem;font-weight:600;color:var(--ink);margin-bottom:4px;line-height:1.4}
+.paper-loaded-info .paper-meta{font-size:.72rem;color:var(--inkMuted);margin-bottom:8px}
+.paper-loaded-chips{display:flex;gap:6px;flex-wrap:wrap}
+.paper-loaded-chips span{font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:600}
+
+/* Botones de acción principales */
+.action-grid{display:grid;gap:12px;margin-bottom:16px}
+.action-btn{padding:14px;border-radius:10px;font-size:.88rem;font-weight:700;cursor:pointer;background:var(--accentMid);color:#fff;border:none;font-family:inherit;transition:all .2s;text-align:left}
+.action-btn:disabled{opacity:.5;cursor:not-allowed}
+.action-btn:hover:not(:disabled){background:#1a6fa0}
+.action-btn-sub{font-size:.7rem;font-weight:400;margin-top:2px;opacity:.85}
+.action-btn-compare{background:#c9a84c}
+.action-btn-compare:hover:not(:disabled){background:var(--gold)}
+
+/* ── Guía ── */
+.guide-toolbar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.guide-search{flex:1;min-width:180px;padding:7px 12px;border:1px solid var(--border);border-radius:7px;font-size:.84rem;outline:none;background:var(--bg);font-family:inherit}
+.guide-search:focus{border-color:var(--accentMid)}
+.filter-pill{padding:5px 12px;border-radius:20px;cursor:pointer;font-size:.74rem;font-weight:600;border:1px solid var(--border);transition:all .15s;background:var(--surface);color:var(--inkSoft);white-space:nowrap}
+.filter-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.guide-section{margin-bottom:20px}
+.guide-section-title{font-size:.65rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--inkMuted);margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.guide-cards{display:grid;gap:10px}
+.guide-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);transition:box-shadow .15s}
+.guide-card:hover{box-shadow:0 4px 20px rgba(26,82,118,.1)}
+.guide-card.highlight{border-color:var(--accentMid);box-shadow:0 0 0 3px rgba(41,128,185,.15)}
+.guide-card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.guide-card-icon{font-size:1.1rem}
+.guide-card-title{font-size:.9rem;font-weight:700;color:var(--ink)}
+.guide-card-nivel{font-size:.6rem;padding:2px 7px;border-radius:10px;font-weight:600}
+.guide-card-nivel.base{background:var(--accentLt);color:var(--accent)}
+.guide-card-nivel.plus{background:var(--goldLt);color:var(--gold)}
+.guide-card-body{font-size:.8rem;color:var(--inkSoft);line-height:1.65}
+
+/* ── SmartSummary ── */
+.mode-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:14px}
+.sum-mode-card{padding:10px 12px;border-radius:9px;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--inkSoft);transition:all .15s}
+.sum-mode-card.active{border-color:var(--accent);background:var(--accent);color:#fff}
+.sum-mode-title{font-size:.8rem;font-weight:700;margin-bottom:3px}
+.sum-mode-desc{font-size:.67rem;line-height:1.45;opacity:.62}
+.sum-mode-card.active .sum-mode-desc{opacity:.88}
+.lang-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.lang-pill{padding:6px 14px;border-radius:20px;cursor:pointer;font-size:.78rem;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--inkSoft);transition:all .15s}
+.lang-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Comparador ── */
+.compare-papers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px}
+.compare-paper-card{background:var(--surface);border:2px solid var(--accentMid);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.compare-paper-header{background:var(--accentMid);color:#fff;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:.78rem;font-weight:700}
+.compare-paper-body{padding:12px 14px}
+.compare-paper-title{font-size:.85rem;font-weight:600;color:var(--ink);margin-bottom:4px}
+.compare-paper-meta{font-size:.72rem;color:var(--inkMuted)}
+.compare-add-slot{background:var(--surface);border:2px dashed var(--border);border-radius:12px;overflow:hidden}
+.compare-add-header{background:var(--bg);color:var(--inkMuted);padding:8px 14px;font-size:.78rem;font-weight:700}
+.compare-add-body{padding:14px}
+.compare-input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;margin-bottom:6px;background:var(--bg);font-family:inherit;outline:none}
+.compare-input:focus{border-color:var(--accentMid)}
+.compare-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.compare-mode-tab{flex:1;text-align:center;padding:5px 4px;border-radius:6px;cursor:pointer;border:1px solid var(--border);font-size:.72rem;font-weight:600;transition:all .15s;background:var(--bg);color:var(--inkSoft)}
+.compare-mode-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Biblioteca ── */
+.library-item{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.library-item-header{background:var(--ink);color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
+.library-item-title{font-size:.88rem;font-weight:600}
+.library-item-meta{font-size:.7rem;color:rgba(255,255,255,.5);margin-top:2px}
+.library-item-body{padding:14px 16px;background:var(--surface)}
+.library-resumen-label{font-size:.65rem;font-weight:700;color:var(--accentMid);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px}
+.library-resumen-text{font-size:.8rem;color:var(--inkSoft);line-height:1.65;white-space:pre-wrap}
+
+/* Gráficas */
+.chart-drop{border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;background:var(--bg);cursor:pointer;margin-top:12px;transition:border .2s}
+.chart-drop:hover{border-color:var(--accentMid)}
+.chart-preview{max-height:220px;max-width:100%;border-radius:8px;object-fit:contain}
+
+/* Timeline */
+.timeline-input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:7px;font-size:.85rem;background:var(--bg);margin-bottom:12px;font-family:inherit;outline:none}
+.timeline-input:focus{border-color:var(--accentMid)}
+
+/* Retracción */
+.retraction-panel{margin-top:12px}
+
+/* No-paper warning */
+.no-paper-warn{background:var(--warnLt);border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:12px 16px;font-size:.82rem;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <div>
+    <div class="logo-main">Evidence<span>Smart</span></div>
+    <div class="logo-sub">CeiboMed · Análisis metodológico de evidencia científica</div>
+  </div>
+  <div class="header-right">
+    <div id="api-bar">
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off"/>
+      <button onclick="conectarAPI()">Conectar</button>
+    </div>
+    <div id="api-active">
+      <div class="chip-ia">✓ IA activa</div>
+      <div class="chip-credits" id="creditsChip">📄 50 · ⚖️ 15</div>
+      <button id="btn-desconectar" onclick="desconectarAPI()">✕</button>
+    </div>
+  </div>
+</header>
+
+<div id="api-warning">🔑 Ingresá tu API key de Anthropic para activar el análisis con IA — <strong>console.anthropic.com</strong></div>
+
+<div class="body-wrap">
+
+<!-- NAV -->
+<nav id="sidebar">
+  <div class="nav-group">Inicio</div>
+  <div class="nav-item active" data-mod="upload" onclick="goTo('upload',this)"><span>📄</span> Cargar paper <span id="nav-badge-upload" class="nav-badge" style="display:none">✓</span></div>
+
+  <div class="nav-group">Análisis</div>
+  <div class="nav-item" data-mod="study"      onclick="goTo('study',this)"><span>🔬</span> Diseño</div>
+  <div class="nav-item" data-mod="objectives" onclick="goTo('objectives',this)"><span>🎯</span> Objetivos</div>
+  <div class="nav-item" data-mod="bias"       onclick="goTo('bias',this)"><span>⚖️</span> Sesgos</div>
+  <div class="nav-item" data-mod="stats"      onclick="goTo('stats',this)"><span>📊</span> Estadística</div>
+  <div class="nav-item" data-mod="population" onclick="goTo('population',this)"><span>👥</span> Población</div>
+  <div class="nav-item" data-mod="safety"     onclick="goTo('safety',this)"><span>🛡️</span> Efectos adversos</div>
+  <div class="nav-item" data-mod="charts"     onclick="goTo('charts',this)"><span>📈</span> Gráficas</div>
+
+  <div class="nav-group">Síntesis</div>
+  <div class="nav-item" data-mod="summary"   onclick="goTo('summary',this)"><span>📝</span> Resumen</div>
+  <div class="nav-item" data-mod="integrity" onclick="goTo('integrity',this)"><span>🔍</span> Conflictos</div>
+  <div class="nav-item" data-mod="score"     onclick="goTo('score',this)"><span>⭐</span> Score confianza</div>
+
+  <div class="nav-group">Avanzado</div>
+  <div class="nav-item" data-mod="compare"   onclick="goTo('compare',this)"><span>⚖️</span> Comparador</div>
+  <div class="nav-item" data-mod="timeline"  onclick="goTo('timeline',this)"><span>📅</span> Línea de tiempo</div>
+  <div class="nav-item" data-mod="journal"   onclick="goTo('journal',this)"><span>🗣️</span> Journal club</div>
+  <div class="nav-item" data-mod="retraction" onclick="goTo('retraction',this)"><span>🚨</span> Retractación</div>
+  <div class="nav-item" data-mod="library"   onclick="goTo('library',this)"><span>📚</span> Biblioteca</div>
+
+  <div class="nav-group">Recursos</div>
+  <div class="nav-item" data-mod="export" onclick="goTo('export',this)"><span>📤</span> Exportar informe</div>
+  <div class="nav-item" data-mod="guide"  onclick="goTo('guide',this)"><span>📖</span> Guía metodológica</div>
+</nav>
+
+<!-- MAIN -->
+<main id="main-content">
+
+<!-- ═══════════════════════════════════════════
+     MÓDULO: UPLOAD
+═══════════════════════════════════════════ -->
+<div id="mod-upload">
+  <div class="upload-hero">
+    <div>
+      <div style="font-family:Georgia,serif;font-size:1rem">Ceibo<span style="color:#c9a84c">Med</span></div>
+      <div style="font-size:.72rem;color:rgba(255,255,255,.55);margin-top:2px">Herramientas para médicos de LATAM · ceibomed.com</div>
+    </div>
+    <div>
+      <div class="upload-hero-icon">🔬</div>
+      <div class="upload-hero-sub">Análisis metodológico</div>
+    </div>
+  </div>
+
+  <div class="card" style="display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.4rem">💡</span>
+    <div style="font-size:.83rem;color:var(--inkSoft);line-height:1.6">
+      <strong style="color:var(--ink)">Cargá uno o dos papers.</strong>
+      Con uno podés analizar todas sus dimensiones. Con dos se activa el comparador automáticamente.
+    </div>
+  </div>
+
+  <div class="papers-grid" id="papers-grid">
+    <!-- Paper 1 -->
+    <div class="paper-slot" id="slot-0" style="border:2px solid var(--border)">
+      <div class="paper-slot-header" id="slot-header-0" style="background:var(--bg);color:var(--inkMuted)">
+        <span>📄 Paper 1</span>
+      </div>
+      <div class="paper-slot-body" id="slot-body-0">
+        <div class="mode-tabs">
+          <div class="mode-tab active" onclick="setModo(0,'pdf')">📄 PDF</div>
+          <div class="mode-tab" onclick="setModo(0,'texto')">📝 Texto</div>
+          <div class="mode-tab" onclick="setModo(0,'foto')">📷 Foto</div>
+        </div>
+        <div id="input-pdf-0">
+          <div class="drop-zone" onclick="document.getElementById('file-pdf-0').click()">
+            <div class="drop-zone-icon">📄</div>
+            <div class="drop-zone-label" id="pdf-label-0">Subir PDF del paper</div>
+            <div class="drop-zone-sub" id="pdf-sub-0">La IA extrae todo automáticamente</div>
+            <input type="file" id="file-pdf-0" accept=".pdf" style="display:none" onchange="onPDF(0,this)"/>
+          </div>
+        </div>
+        <div id="input-texto-0" style="display:none">
+          <textarea class="paper-text" id="texto-0" placeholder="Pegá el abstract, métodos y resultados.&#10;&#10;(Cuanto más texto, mejor el análisis)" oninput="onTextoChange(0)"></textarea>
+          <div id="texto-counter-0" style="font-size:.68rem;margin-top:3px;display:none"></div>
+        </div>
+        <div id="input-foto-0" style="display:none">
+          <div class="drop-zone" onclick="document.getElementById('file-foto-0').click()">
+            <div class="drop-zone-icon">📷</div>
+            <div class="drop-zone-label" id="foto-label-0">Foto o captura del paper</div>
+            <div class="drop-zone-sub">JPG, PNG — la IA lee la imagen</div>
+            <input type="file" id="file-foto-0" accept="image/*" style="display:none" onchange="onFoto(0,this)"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:10px;justify-content:center" id="btn-cargar-0" disabled onclick="cargarPaper(0)">✅ Cargar Paper 1</button>
+      </div>
+    </div>
+
+    <!-- Paper 2 -->
+    <div class="paper-slot" id="slot-1" style="border:2px solid var(--border)">
+      <div class="paper-slot-header" id="slot-header-1" style="background:var(--bg);color:var(--inkMuted)">
+        <span>📄 Paper 2 (opcional)</span>
+      </div>
+      <div class="paper-slot-body" id="slot-body-1">
+        <div class="mode-tabs">
+          <div class="mode-tab active" onclick="setModo(1,'pdf')">📄 PDF</div>
+          <div class="mode-tab" onclick="setModo(1,'texto')">📝 Texto</div>
+          <div class="mode-tab" onclick="setModo(1,'foto')">📷 Foto</div>
+        </div>
+        <div id="input-pdf-1">
+          <div class="drop-zone" onclick="document.getElementById('file-pdf-1').click()">
+            <div class="drop-zone-icon">📄</div>
+            <div class="drop-zone-label" id="pdf-label-1">Subir PDF del paper</div>
+            <div class="drop-zone-sub" id="pdf-sub-1">La IA extrae todo automáticamente</div>
+            <input type="file" id="file-pdf-1" accept=".pdf" style="display:none" onchange="onPDF(1,this)"/>
+          </div>
+        </div>
+        <div id="input-texto-1" style="display:none">
+          <textarea class="paper-text" id="texto-1" placeholder="Pegá el abstract, métodos y resultados.&#10;&#10;(Cuanto más texto, mejor el análisis)" oninput="onTextoChange(1)"></textarea>
+          <div id="texto-counter-1" style="font-size:.68rem;margin-top:3px;display:none"></div>
+        </div>
+        <div id="input-foto-1" style="display:none">
+          <div class="drop-zone" onclick="document.getElementById('file-foto-1').click()">
+            <div class="drop-zone-icon">📷</div>
+            <div class="drop-zone-label" id="foto-label-1">Foto o captura del paper</div>
+            <div class="drop-zone-sub">JPG, PNG — la IA lee la imagen</div>
+            <input type="file" id="file-foto-1" accept="image/*" style="display:none" onchange="onFoto(1,this)"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:10px;justify-content:center" id="btn-cargar-1" disabled onclick="cargarPaper(1)">✅ Cargar Paper 2</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="action-buttons" class="action-grid" style="display:none">
+    <button class="action-btn" id="btn-analizar-1" disabled onclick="analizarPaper(0)">
+      🔬 Analizar Paper 1
+      <div class="action-btn-sub" id="analizar-1-sub">Cargá el Paper 1 primero</div>
+    </button>
+  </div>
+  <div id="action-compare" style="display:none;margin-top:-2px">
+    <button class="action-btn action-btn-compare btn-full" onclick="goTo('compare')">
+      ⚖️ Comparar Paper 1 vs Paper 2
+      <div class="action-btn-sub" id="compare-sub"></div>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     MÓDULOS DE ANÁLISIS
+═══════════════════════════════════════════ -->
+
+<!-- STUDY -->
+<div id="mod-study" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🔬</span><span class="title">StudyDesign — Diseño del estudio</span></div>
+    <div class="card-desc">Tipo de estudio, nivel de evidencia y adecuación del tamaño muestral</div>
+    <button class="btn btn-primary" id="btn-study" onclick="callIA('study')">🔬 Analizar diseño del estudio</button>
+    <div id="ia-study"></div>
+    <div id="kc-study"></div>
+  </div>
+</div>
+
+<!-- OBJECTIVES -->
+<div id="mod-objectives" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🎯</span><span class="title">Objectives — Análisis de objetivos</span></div>
+    <div class="card-desc">Objetivos primarios y secundarios, significancia estadística y clínica, outcome switching</div>
+    <div style="margin:12px 0">
+      <div style="font-size:.75rem;font-weight:600;color:var(--inkSoft);margin-bottom:6px">¿Tenés el protocolo registrado (ClinicalTrials.gov / PROSPERO / WHO ICTRP / SAP)?</div>
+      <select id="obj-protocolo" onchange="objProtoToggle()">
+        <option value="no">No</option>
+        <option value="si">Sí</option>
+      </select>
+      <div id="obj-proto-upload" style="display:none;margin-top:8px">
+        <input type="file" id="obj-proto-file" accept=".txt,.pdf,.json" onchange="onProtoFile(this)"/>
+        <div style="font-size:.72rem;color:var(--inkSoft);margin-top:4px">Cargá el protocolo/SAP para comparar los outcomes reportados con los preespecificados.</div>
+        <div id="obj-proto-status" style="font-size:.72rem;color:var(--success);margin-top:4px"></div>
+      </div>
+      <div id="obj-proto-warn" class="alert alert-warn" style="margin-top:8px">Sin protocolo/registro previo, el outcome switching no es evaluable de forma confiable desde el artículo aislado. La IA lo señalará explícitamente.</div>
+    </div>
+    <button class="btn btn-primary" id="btn-objectives" onclick="callIA('objectives')">🎯 Analizar objetivos</button>
+    <div id="ia-objectives"></div>
+    <div id="kc-objectives"></div>
+  </div>
+</div>
+
+<!-- BIAS -->
+<div id="mod-bias" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">⚖️</span><span class="title">BiasAnalysis — Análisis de sesgos</span></div>
+    <div class="card-desc">Detección de sesgos y riesgo de sesgo según el diseño (RoB 2 para ECA · ROBINS-I para observacionales · QUADAS-2 para diagnósticos · AMSTAR 2 / ROBIS para revisiones sistemáticas). GRADE no es una escala de calidad de un paper individual: evalúa la certeza de un cuerpo de evidencia para un outcome.</div>
+    <button class="btn btn-primary" id="btn-bias" onclick="callIA('bias')">⚖️ Analizar riesgo de sesgo (RoB 2)</button>
+    <div id="ia-bias"></div>
+    <div id="kc-bias"></div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div id="mod-stats" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">📊</span><span class="title">StatResults — Análisis estadístico</span></div>
+    <div class="card-desc">Valor p, IC 95%, NNT/NNH, HR, tamaño del efecto y test estadístico utilizado</div>
+    <button class="btn btn-primary" id="btn-stats" onclick="callIA('stats')">📊 Analizar estadística</button>
+    <div id="ia-stats"></div>
+    <div id="kc-stats"></div>
+  </div>
+</div>
+
+<!-- POPULATION -->
+<div id="mod-population" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">👥</span><span class="title">PopulationAnalysis — Análisis de población</span></div>
+    <div class="card-desc">Características basales, criterios de inclusión/exclusión y generalizabilidad</div>
+    <button class="btn btn-primary" id="btn-population" onclick="callIA('population')">👥 Analizar población</button>
+    <div id="ia-population"></div>
+    <div id="kc-population"></div>
+  </div>
+</div>
+
+<!-- SAFETY -->
+<div id="mod-safety" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🛡️</span><span class="title">SafetyProfile — Efectos adversos y seguridad</span></div>
+    <div class="card-desc">Extracción y análisis de efectos adversos reportados</div>
+    <button class="btn btn-primary" id="btn-safety" onclick="callIA('safety')">🛡️ Analizar perfil de seguridad</button>
+    <div id="ia-safety"></div>
+    <div id="kc-safety"></div>
+  </div>
+</div>
+
+<!-- CHARTS -->
+<div id="mod-charts" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">📈</span><span class="title">ChartReader — Análisis de gráficas</span></div>
+    <div class="card-desc">Subí una imagen de cualquier gráfica del paper y la IA la interpreta</div>
+    <div class="alert alert-info">Kaplan-Meier, forest plot, box plot, curvas ROC, etc. — la IA identifica el tipo, describe los hallazgos y explica el resultado.</div>
+    <div class="chart-drop" id="chart-drop" onclick="document.getElementById('file-chart').click()">
+      <div id="chart-preview-wrap" style="display:none"><img id="chart-preview" class="chart-preview" src="" alt="gráfica"/><div style="font-size:.78rem;color:var(--success);margin-top:8px">✅ Gráfica cargada</div></div>
+      <div id="chart-placeholder">
+        <div style="font-size:2.2rem;margin-bottom:8px">📈</div>
+        <div style="font-size:.85rem;font-weight:600;color:var(--ink)">Subí la imagen de la gráfica</div>
+        <div style="font-size:.74rem;color:var(--inkMuted);margin-top:4px">JPG, PNG</div>
+      </div>
+      <input type="file" id="file-chart" accept="image/*" style="display:none" onchange="onChart(this)"/>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-primary" id="btn-charts" onclick="callIA('charts')" disabled>📈 Analizar gráfica con IA</button>
+      <button class="btn btn-secondary btn-sm" id="btn-chart-clear" style="display:none" onclick="clearChart()">✕ Quitar</button>
+    </div>
+    <div id="ia-charts"></div>
+    <div id="kc-charts"></div>
+  </div>
+</div>
+
+<!-- SUMMARY -->
+<div id="mod-summary" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">📝</span><span class="title">SmartSummary — Resumen · Traducción · Guías largas</span></div>
+    <div class="card-desc">Artículos y guías de hasta 50+ páginas · Tres modos · Portugués y Español prioritarios</div>
+
+    <div style="font-size:.7rem;font-weight:700;color:var(--inkSoft);margin-bottom:8px;text-transform:uppercase;letter-spacing:1.5px">Modo de procesamiento</div>
+    <div class="mode-grid-3" id="sum-modes">
+      <div class="sum-mode-card active" onclick="setSumMode('resumen',this)">
+        <div class="sum-mode-title">📋 Resumen ejecutivo</div>
+        <div class="sum-mode-desc">Secciones fijas. Recomendaciones con Clase (I/IIa/IIb/III) y Nivel (A/B/C) preservadas TEXTUALMENTE.</div>
+      </div>
+      <div class="sum-mode-card" onclick="setSumMode('traduccion',this)">
+        <div class="sum-mode-title">🌐 Traducción fiel</div>
+        <div class="sum-mode-desc">Traducción completa sin resumir. Preserva dosis, siglas y estructura. Ideal para guías en otro idioma.</div>
+      </div>
+      <div class="sum-mode-card" onclick="setSumMode('tabla',this)">
+        <div class="sum-mode-title">📊 Tabla de recomendaciones</div>
+        <div class="sum-mode-desc">Extrae SOLO recomendaciones con Clase y Nivel de evidencia. Perfecto para guías ESC/AHA/ACC.</div>
+      </div>
+    </div>
+    <div class="alert alert-warn">⚠ Verificar Clase y Nivel contra el documento original antes de usar en decisiones clínicas. La extracción automática puede contener errores; cada recomendación debe traer su página/sección y fragmento fuente.</div>
+
+    <div style="font-size:.7rem;font-weight:700;color:var(--inkSoft);margin-bottom:8px;text-transform:uppercase;letter-spacing:1.5px">Idioma de salida</div>
+    <div class="lang-pills" id="lang-pills">
+      <div class="lang-pill active" onclick="setLang('portugués',this)">🇧🇷 Português</div>
+      <div class="lang-pill" onclick="setLang('español',this)">🇺🇾 Español</div>
+      <div class="lang-pill" onclick="setLang('english',this)">🇺🇸 English</div>
+      <div class="lang-pill" onclick="setLang('français',this)">🇫🇷 Français</div>
+    </div>
+
+    <div id="sum-mode-info" class="alert alert-info" style="display:none"></div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-primary" id="btn-summary" onclick="callIA('summary')">📋 Generar resumen ejecutivo</button>
+      <button class="btn btn-gold btn-sm" id="btn-save-lib" style="display:none" onclick="guardarBiblioteca()">📚 Guardar en biblioteca</button>
+    </div>
+    <div id="ia-summary"></div>
+  </div>
+</div>
+
+<!-- INTEGRITY -->
+<div id="mod-integrity" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🔍</span><span class="title">IntegrityCheck — Conflictos de interés</span></div>
+    <div class="card-desc">Financiamiento, afiliaciones y declaraciones de conflicto</div>
+    <button class="btn btn-primary" id="btn-integrity" onclick="callIA('integrity')">🔍 Analizar conflictos de interés</button>
+    <div id="ia-integrity"></div>
+    <div id="kc-integrity"></div>
+  </div>
+</div>
+
+<!-- SCORE -->
+<div id="mod-score" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">⭐</span><span class="title">Evaluación metodológica — Evaluación global</span></div>
+    <div class="card-desc">Evaluación estructurada por dimensiones (riesgo de sesgo, precisión, aplicabilidad, limitaciones). No genera un puntaje numérico ni una recomendación de aplicar/no aplicar.</div>
+    <div class="alert alert-info">Este módulo es más preciso si primero completaste Diseño, Objetivos y Sesgos. Si no, el análisis se basa en el texto del paper.</div>
+    <div class="alert alert-warn">Esta evaluación es orientativa. No reemplaza la lectura crítica completa ni constituye una recomendación clínica.</div>
+    <button class="btn btn-primary" id="btn-score" onclick="callIA('score')" style="margin-top:12px">⭐ Generar evaluación metodológica</button>
+    <div id="ia-score"></div>
+    <div id="kc-score"></div>
+  </div>
+</div>
+
+<!-- COMPARE -->
+<div id="mod-compare" style="display:none">
+  <div style="background:linear-gradient(135deg,var(--ink),#1a3a5c);color:#fff;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-family:Georgia,serif;font-size:1rem">⚖️ PaperComparator</div>
+      <div style="font-size:.72rem;color:rgba(255,255,255,.55);margin-top:2px">Comparación sistemática de 2 o más papers</div>
+    </div>
+    <div style="font-size:.75rem;color:rgba(255,255,255,.5)" id="compare-count">0 papers cargados</div>
+  </div>
+  <div class="compare-papers-grid" id="compare-papers-list"></div>
+  <div id="compare-add-slot">
+    <div class="compare-add-slot">
+      <div class="compare-add-header" id="compare-add-title">➕ Paper 1</div>
+      <div class="compare-add-body">
+        <input class="compare-input" id="comp-titulo" placeholder="Título del paper *"/>
+        <div class="compare-grid-2">
+          <input class="compare-input" id="comp-anio" placeholder="Año"/>
+          <input class="compare-input" id="comp-revista" placeholder="Revista"/>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <div class="compare-mode-tab active" id="comp-tab-T" onclick="setCompTab('T')">📝 Texto</div>
+          <div class="compare-mode-tab" id="comp-tab-P" onclick="setCompTab('P')">📄 PDF</div>
+        </div>
+        <div id="comp-texto-wrap">
+          <textarea class="compare-input" id="comp-texto" placeholder="Pegá el abstract o texto..." style="min-height:70px;resize:vertical"></textarea>
+        </div>
+        <div id="comp-pdf-wrap" style="display:none">
+          <div class="drop-zone" onclick="document.getElementById('comp-pdf-input').click()" style="padding:14px">
+            <div style="font-size:.82rem;color:var(--inkMuted);font-weight:400" id="comp-pdf-label">📄 Subir PDF</div>
+            <input type="file" id="comp-pdf-input" accept=".pdf" style="display:none" onchange="onCompPDF(this)"/>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" style="margin-top:10px" onclick="agregarCompare()">+ Agregar este paper</button>
+      </div>
+    </div>
+  </div>
+  <div id="compare-action" style="display:none;margin-top:16px">
+    <div class="card">
+      <div style="font-size:.82rem;color:var(--inkSoft);margin-bottom:12px">Listo para comparar <strong id="compare-n">2</strong> papers</div>
+      <div class="alert alert-warn" style="margin-bottom:12px">La comparación se basa en el texto disponible de cada artículo. Verificá la metodología y los resultados completos en los artículos originales.</div>
+      <button class="btn btn-primary btn-full" id="btn-compare" onclick="callIA('compare')">⚖️ Comparar papers con IA</button>
+      <div id="ia-compare"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div id="mod-timeline" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">📅</span><span class="title">Línea histórica orientativa (modelo)</span></div>
+    <div class="card-desc">Evolución cronológica orientativa basada en el conocimiento del modelo. No es una búsqueda bibliográfica en tiempo real.</div>
+    <div class="alert alert-info">Ingresá un tema clínico y la IA trazará una línea histórica orientativa de la evidencia.</div>
+    <div class="alert alert-warn">Las referencias generadas por IA deben verificarse en PubMed antes de usarse. La línea de tiempo puede omitir estudios recientes o contener imprecisiones.</div>
+    <div style="font-size:.75rem;font-weight:600;color:var(--inkSoft);margin-bottom:6px;margin-top:12px">Tema clínico</div>
+    <input class="timeline-input" id="timeline-tema" placeholder="Ej: terapia fármaco-invasiva en IAMCEST / TEER / fibrinólisis..."/>
+    <button class="btn btn-primary" id="btn-timeline" onclick="callIA('timeline')">📅 Generar línea histórica orientativa</button>
+    <div id="ia-timeline"></div>
+  </div>
+</div>
+
+<!-- JOURNAL -->
+<div id="mod-journal" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🗣️</span><span class="title">Journal Club — Preguntas de discusión</span></div>
+    <div class="card-desc">Preguntas para ateneos, residencias o cursos de posgrado</div>
+    <button class="btn btn-primary" id="btn-journal" onclick="callIA('journal')">🗣️ Generar preguntas de journal club</button>
+    <div id="ia-journal"></div>
+  </div>
+</div>
+
+<!-- RETRACTION -->
+<div id="mod-retraction" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🚨</span><span class="title">Estado de publicación (conocimiento del modelo)</span></div>
+    <div class="card-desc">Retractaciones, correcciones y alertas de integridad según el conocimiento del modelo — no es una verificación en tiempo real.</div>
+    <div class="alert alert-warn">⚠ Esta verificación se basa en el conocimiento del modelo y puede estar desactualizada. Para confirmar el estado actual consultá PubMed, Retraction Watch (retractionwatch.com) o Crossmark (DOI del artículo).</div>
+    <button class="btn btn-primary" id="btn-retraction" onclick="callIA('retraction')" style="margin-top:12px">🚨 Consultar estado de publicación</button>
+    <div id="ia-retraction"></div>
+  </div>
+</div>
+
+<!-- LIBRARY -->
+<div id="mod-library" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">📚</span><span class="title">Biblioteca personal</span></div>
+    <div class="card-desc">Papers analizados guardados con sus resúmenes y análisis</div>
+    <div id="library-list"></div>
+  </div>
+</div>
+
+<!-- EXPORT -->
+<div id="mod-export" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">📤</span><span class="title">Exportar informe completo</span></div>
+    <div class="card-desc">Descargá todos los análisis realizados en un archivo de texto</div>
+    <div class="alert alert-info" id="export-info">Primero realizá algún análisis. El informe incluirá todos los módulos completados.</div>
+    <button class="btn btn-primary" id="btn-export" onclick="exportarInforme()" style="margin-top:12px">📤 Descargar informe (.txt)</button>
+  </div>
+</div>
+
+<!-- GUIDE -->
+<div id="mod-guide" style="display:none">
+  <div class="guide-toolbar">
+    <input class="guide-search" id="guide-search" placeholder="Buscar concepto..." oninput="filterGuide()"/>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <div class="filter-pill active" onclick="setNivel('all',this)">Todos</div>
+      <div class="filter-pill" onclick="setNivel('base',this)">Base</div>
+      <div class="filter-pill" onclick="setNivel('plus',this)">Plus</div>
+    </div>
+  </div>
+  <div id="guide-cats"></div>
+</div>
+
+</main>
+</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// ESTADO GLOBAL
+// ══════════════════════════════════════════════
+const ST = {
+  apiKey: '',
+  iaActiva: false,
+  creditosInd: 50,
+  creditosComp: 15,
+  modActivo: 'upload',
+  papers: [
+    {titulo:'',anio:'',revista:'',texto:'',pdf:'',foto:'',mime:'',modo:'pdf',cargado:false,estado:'pending',pdfNombre:'',fotoNombre:''},
+    {titulo:'',anio:'',revista:'',texto:'',pdf:'',foto:'',mime:'',modo:'pdf',cargado:false,estado:'pending',pdfNombre:'',fotoNombre:''}
+  ],
+  protocoloTexto:'',
+  avisoEnvioAceptado:false,
+  paperActivo: 0,   // índice del paper en análisis
+  iaResults: {},    // {study:'...', objectives:'...', ...}
+  biblioteca: [],
+  chartB64: '',
+  chartMime: '',
+  sumMode: 'resumen',
+  sumLang: 'portugués',
+  comparePapers: [],
+  compTab: 'T',
+  compPdfB64: '',
+  compPdfNombre: '',
+  guideNivel: 'all',
+  guideHighlight: null
+};
+
+// ══════════════════════════════════════════════
+// API
+// ══════════════════════════════════════════════
+async function llamarIA(messages, systemPrompt, maxTokens=1500) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ST.apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content?.[0]?.text || '';
+}
+
+const SYSTEM = `Sos un experto en metodología de investigación biomédica, epidemiología clínica y estadística. Analizás artículos científicos con rigor académico, orientado a médicos de LATAM. Respondés siempre en español, de forma clara y estructurada. Usá texto plano con saltos de línea simples. Cuando hagas semáforos de evaluación usá explícitamente los emojis 🟢 🟡 🔴 con sus descripciones.`;
+
+// ══════════════════════════════════════════════
+// CONEXIÓN API
+// ══════════════════════════════════════════════
+function conectarAPI() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (!k.startsWith('sk-ant-')) { alert('API key inválida — debe empezar con sk-ant-'); return; }
+  ST.apiKey = k;
+  ST.iaActiva = true;
+  document.getElementById('api-bar').style.display = 'none';
+  document.getElementById('api-active').style.display = 'flex';
+  document.getElementById('api-warning').style.display = 'none';
+  actualizarCreditos();
+}
+function desconectarAPI() {
+  ST.apiKey = '';
+  ST.iaActiva = false;
+  document.getElementById('api-bar').style.display = 'flex';
+  document.getElementById('api-active').style.display = 'none';
+  document.getElementById('api-warning').style.display = 'block';
+}
+function actualizarCreditos() {
+  document.getElementById('creditsChip').textContent = `📄 ${ST.creditosInd} · ⚖️ ${ST.creditosComp}`;
+}
+function usarCredito(tipo='individual') {
+  if (tipo === 'comparador') {
+    if (ST.creditosComp <= 0) { alert('Sin créditos de comparación.'); return false; }
+    ST.creditosComp--;
+  } else {
+    if (ST.creditosInd <= 0) { alert('Sin créditos disponibles.'); return false; }
+    ST.creditosInd--;
+  }
+  actualizarCreditos();
+  return true;
+}
+
+// ══════════════════════════════════════════════
+// NAVEGACIÓN
+// ══════════════════════════════════════════════
+function goTo(mod, el) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else document.querySelector(`[data-mod="${mod}"]`)?.classList.add('active');
+
+  document.querySelectorAll('[id^="mod-"]').forEach(m => m.style.display = 'none');
+  const target = document.getElementById(`mod-${mod}`);
+  if (target) target.style.display = 'block';
+  ST.modActivo = mod;
+
+  // Inicializar módulos especiales
+  if (mod === 'guide') renderGuide();
+  if (mod === 'library') renderLibrary();
+  if (mod === 'compare') renderComparePapers();
+  if (mod === 'summary') syncSumUI();
+
+  // Advertencia si no hay paper
+  if (!['upload','guide','library','compare','timeline'].includes(mod) && !ST.papers[ST.paperActivo].cargado) {
+    mostrarNoPaperWarn(target);
+  } else {
+    document.querySelectorAll('.no-paper-warn').forEach(e => e.remove());
+  }
+}
+
+function mostrarNoPaperWarn(container) {
+  container.querySelectorAll('.no-paper-warn').forEach(e => e.remove());
+  const div = document.createElement('div');
+  div.className = 'no-paper-warn';
+  div.innerHTML = `⚠️ No hay paper cargado. Andá al módulo <strong>Cargar paper</strong> primero. <button class="btn btn-secondary btn-sm" style="margin-left:10px" onclick="goTo('upload')">→ Cargar paper</button>`;
+  container.insertBefore(div, container.firstChild);
+}
+
+// ══════════════════════════════════════════════
+// UPLOAD — PAPERS
+// ══════════════════════════════════════════════
+function setModo(idx, modo) {
+  ST.papers[idx].modo = modo;
+  ['pdf','texto','foto'].forEach(m => {
+    document.getElementById(`input-${m}-${idx}`).style.display = m===modo ? 'block' : 'none';
+  });
+  // Tabs
+  const tabs = document.querySelectorAll(`#slot-${idx} .mode-tab`);
+  tabs.forEach((t,i) => t.classList.toggle('active', ['pdf','texto','foto'][i]===modo));
+  checkCargarBtn(idx);
+}
+
+function onPDF(idx, input) {
+  const f = input.files[0]; if (!f) return;
+  if (!chequearArchivo(f, input, MAX_PDF, '20 MB')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    ST.papers[idx].pdf = e.target.result.split(',')[1];
+    ST.papers[idx].pdfNombre = f.name;
+    document.getElementById(`pdf-label-${idx}`).textContent = `✅ ${f.name}`;
+    document.getElementById(`pdf-label-${idx}`).style.color = 'var(--success)';
+    document.getElementById(`pdf-sub-${idx}`).textContent = 'Click para cambiar';
+    checkCargarBtn(idx);
+  };
+  reader.readAsDataURL(f);
+  input.value='';
+}
+
+function onFoto(idx, input) {
+  const f = input.files[0]; if (!f) return;
+  if (!chequearArchivo(f, input, MAX_IMG, '5 MB')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    ST.papers[idx].foto = e.target.result.split(',')[1];
+    ST.papers[idx].mime = f.type;
+    ST.papers[idx].fotoNombre = f.name;
+    document.getElementById(`foto-label-${idx}`).textContent = `✅ ${f.name}`;
+    document.getElementById(`foto-label-${idx}`).style.color = 'var(--success)';
+    checkCargarBtn(idx);
+  };
+  reader.readAsDataURL(f);
+  input.value='';
+}
+
+function onTextoChange(idx) {
+  const t = document.getElementById(`texto-${idx}`).value;
+  ST.papers[idx].texto = t;
+  const counter = document.getElementById(`texto-counter-${idx}`);
+  if (t.length > 0) {
+    counter.style.display = 'block';
+    counter.textContent = t.length > 300 ? `✅ ${t.length} caracteres` : `⚠️ ${t.length} car. — agregá más texto`;
+    counter.style.color = t.length > 300 ? 'var(--success)' : 'var(--warn)';
+  } else {
+    counter.style.display = 'none';
+  }
+  checkCargarBtn(idx);
+}
+
+function checkCargarBtn(idx) {
+  const p = ST.papers[idx];
+  const hasContent = p.pdf || p.foto || document.getElementById(`texto-${idx}`)?.value?.trim();
+  document.getElementById(`btn-cargar-${idx}`).disabled = !hasContent;
+}
+
+async function cargarPaper(idx) {
+  const p = ST.papers[idx];
+  const textoVal = document.getElementById(`texto-${idx}`)?.value?.trim() || '';
+  if (!p.pdf && !textoVal && !p.foto) { alert('Subí un PDF, pegá texto o subí una foto.'); return; }
+
+  const btn = document.getElementById(`btn-cargar-${idx}`);
+  btn.disabled = true;
+  btn.textContent = '⏳ Extrayendo...';
+
+  let ok = true;
+  if (p.pdf && ST.iaActiva) {
+    try {
+      const resp = await llamarIA([{
+        role:'user',
+        content:[
+          {type:'document', source:{type:'base64', media_type:'application/pdf', data:p.pdf}},
+          {type:'text', text:`Extraé de este paper:\nTÍTULO: [título completo]\nAÑO: [año]\nREVISTA: [revista]\nCONTENIDO: [abstract + métodos + resultados + conclusiones]\nDevolvé SOLO estas secciones etiquetadas.`}
+        ]
+      }], SYSTEM, 2000);
+      const titulo = resp.match(/TÍTULO:\s*(.+)/)?.[1]?.trim()||'';
+      const anio   = resp.match(/AÑO:\s*(.+)/)?.[1]?.trim()||'';
+      const revista= resp.match(/REVISTA:\s*(.+)/)?.[1]?.trim()||'';
+      const cont   = resp.match(/CONTENIDO:\s*([\s\S]+)/)?.[1]?.trim()||'';
+      if (titulo) ST.papers[idx].titulo = titulo;
+      if (anio) ST.papers[idx].anio = anio;
+      if (revista) ST.papers[idx].revista = revista;
+      if (cont) ST.papers[idx].texto = cont;
+      ST.creditosInd--;
+      actualizarCreditos();
+      // FIX: si la extracción no devolvió contenido ni título, considerar fallido.
+      if (!cont && !titulo) ok = false;
+    } catch(e) { console.warn('Extracción PDF falló:', e); ok = false; }
+  } else {
+    ST.papers[idx].texto = textoVal;
+  }
+
+  if (ok) {
+    // FIX: éxito → estado procesado
+    ST.papers[idx].estado = 'procesado';
+    ST.papers[idx].cargado = true;
+    renderSlotCargado(idx);
+    actualizarActionButtons();
+  } else {
+    // FIX: fallo de extracción → estado fallido, NO marcar cargado. Bloquea el análisis.
+    ST.papers[idx].estado = 'fallido';
+    ST.papers[idx].cargado = false;
+    const b = document.getElementById(`btn-cargar-${idx}`);
+    if (b) { b.disabled = false; b.textContent = '↻ Reintentar carga'; }
+    let est = document.getElementById(`estado-${idx}`);
+    if (!est && b) { est = document.createElement('div'); est.id = `estado-${idx}`; est.className = 'alert alert-danger'; est.style.marginTop = '8px'; b.parentNode.insertBefore(est, b); }
+    if (est) est.textContent = '⚠ Error al procesar. El documento no fue procesado correctamente. Intentá cargarlo nuevamente.';
+    actualizarActionButtons();
+  }
+}
+
+function renderSlotCargado(idx) {
+  const p = ST.papers[idx];
+  const slot = document.getElementById(`slot-${idx}`);
+  const header = document.getElementById(`slot-header-${idx}`);
+  const body = document.getElementById(`slot-body-${idx}`);
+
+  slot.style.borderColor = 'var(--accentMid)';
+  slot.style.borderWidth = '2px';
+  header.style.background = 'var(--accentMid)';
+  header.style.color = '#fff';
+  header.innerHTML = `
+    <span>📄 Paper ${idx+1}</span>
+    <button style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.72rem" onclick="quitarPaper(${idx})">✕ Quitar</button>
+  `;
+
+  let chips = '';
+  if (p.estado === 'procesado') chips += `<span style="background:var(--successLt);color:var(--success)">✅ Procesado</span>`;
+  if (p.pdf) chips += `<span style="background:var(--successLt);color:var(--success)">📄 PDF</span>`;
+  if (p.texto) chips += `<span style="background:var(--accentLt);color:var(--accent)">📝 ${p.texto.length} car.</span>`;
+  if (p.foto) chips += `<span style="background:var(--accentLt);color:var(--accent)">📷 Imagen</span>`;
+
+  // FIX XSS: título/año/revista escapados antes de innerHTML
+  body.innerHTML = `
+    <div class="paper-loaded-info">
+      <div class="paper-title">${escHtml(p.titulo || 'Paper cargado')}</div>
+      ${(p.anio||p.revista)?`<div class="paper-meta">${escHtml(p.anio)}${p.revista?' · '+escHtml(p.revista):''}</div>`:''}
+      <div class="paper-loaded-chips">${chips}</div>
+    </div>
+  `;
+
+  if (idx === 0) {
+    document.getElementById('nav-badge-upload').style.display = 'inline';
+    document.getElementById('nav-badge-upload').textContent = '✓';
+  }
+}
+
+function quitarPaper(idx) {
+  ST.papers[idx] = {titulo:'',anio:'',revista:'',texto:'',pdf:'',foto:'',mime:'',modo:'pdf',cargado:false,estado:'pending',pdfNombre:'',fotoNombre:''};
+  location.reload(); // reset simple
+}
+
+function actualizarActionButtons() {
+  const p0 = ST.papers[0], p1 = ST.papers[1];
+  const grid = document.getElementById('action-buttons');
+  const btn1 = document.getElementById('btn-analizar-1');
+  const sub1 = document.getElementById('analizar-1-sub');
+  const compareDiv = document.getElementById('action-compare');
+  const compareSub = document.getElementById('compare-sub');
+
+  grid.style.display = p0.cargado ? 'grid' : 'none';
+  btn1.disabled = !p0.cargado;
+  sub1.textContent = p0.cargado ? `"${p0.titulo.substring(0,30)}${p0.titulo.length>30?'...':''}"` : 'Cargá el Paper 1 primero';
+
+  if (p0.cargado && p1.cargado) {
+    compareDiv.style.display = 'block';
+    compareSub.textContent = `${p0.titulo.substring(0,16)}... vs ${p1.titulo.substring(0,16)}...`;
+    document.getElementById('action-buttons').style.gridTemplateColumns = '1fr 1fr';
+    // Agregar botón paper 2 si no existe
+    if (!document.getElementById('btn-analizar-2')) {
+      const btn2 = document.createElement('button');
+      btn2.className = 'action-btn';
+      btn2.id = 'btn-analizar-2';
+      btn2.onclick = () => analizarPaper(1);
+      btn2.innerHTML = `🔬 Analizar Paper 2<div class="action-btn-sub">"${p1.titulo.substring(0,28)}${p1.titulo.length>28?'...':''}"</div>`;
+      grid.appendChild(btn2);
+    }
+  }
+}
+
+function analizarPaper(idx) {
+  ST.paperActivo = idx;
+  goTo('study', document.querySelector('[data-mod="study"]'));
+}
+
+// ══════════════════════════════════════════════
+// IA — CALL PRINCIPAL
+// ══════════════════════════════════════════════
+const PROMPTS = {
+  study: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nIdentificá: 1) Tipo exacto de estudio y justificá. 2) Nivel de evidencia: usar Oxford Centre for Evidence-Based Medicine (OCEBM) o descripción del diseño del estudio. GRADE solo aplica a revisiones sistemáticas/metaanálisis como cuerpo de evidencia, no a un paper individual. 3) Si el diseño es adecuado para los objetivos. 4) Tamaño muestral: ¿fue calculado? ¿es adecuado? ¿hay análisis de potencia? 5) Semáforo: 🟢 sólido / 🟡 aceptable / 🔴 débil.`,
+  objectives: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nAnalizá: 1) Objetivo primario declarado. 2) Secundarios. 3) ¿Se alcanzó el primario con significancia estadística Y clínica? 4) ¿Se alcanzaron los secundarios? 5) Outcome switching: no puede evaluarse confiablemente sin comparar con el protocolo registrado (ClinicalTrials.gov, PROSPERO, WHO ICTRP) o SAP previo. Verificá si el paper cita un número de registro. Si existe: indicá el número y señalá que requiere comparación externa. Si no existe: "Registro de protocolo no reportado — outcome switching no evaluable desde el artículo aislado."${ST.protocoloTexto ? '\n\nPROTOCOLO/SAP APORTADO POR EL USUARIO (compará los outcomes reportados en el paper contra estos outcomes preespecificados):\n'+ST.protocoloTexto.substring(0,4000) : ''} 6) Semáforo: 🟢 alcanzado / 🟡 dudoso / 🔴 no alcanzado.`,
+  bias: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nSesgos: 1) Selección. 2) Información/medición. 3) Confusión. 4) Seguimiento/pérdidas. 5) Publicación. 6) Riesgo de sesgo según el diseño:\n   - ECA → RoB 2 (Cochrane), dominios: D1 proceso de aleatorización; D2 desviaciones de la intervención prevista; D3 datos faltantes en el outcome; D4 medición del outcome; D5 selección del resultado reportado. Resultado por dominio y global: bajo riesgo / algunas preocupaciones / alto riesgo.\n   - Estudios observacionales → ROBINS-I.\n   - Estudios diagnósticos → QUADAS-2.\n   - Revisiones sistemáticas → AMSTAR 2 o ROBIS.\n   GRADE solo evalúa la certeza del cuerpo de evidencia en revisiones sistemáticas; NO es una escala de calidad de un paper individual. 7) Semáforo de riesgo de sesgo: 🟢 bajo / 🟡 algunas preocupaciones / 🔴 alto.`,
+  stats: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nEstadística: 1) Valores p — ¿significativos y correctamente interpretados? 2) IC 95%. 3) NNT o NNH si aplica. 4) Tamaño del efecto (HR, OR, RR) y relevancia clínica. 5) ¿El test estadístico fue correcto? 6) ¿Significancia estadística = clínica? 7) Semáforo: 🟢 / 🟡 / 🔴.`,
+  population: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nPoblación: 1) Características basales. 2) Criterios inclusión/exclusión — ¿apropiados? 3) ¿Representativa? ¿de qué contexto? 4) Generalizabilidad, especialmente a LATAM. 5) Real-world evidence comparada. 6) Semáforo: 🟢 / 🟡 / 🔴.`,
+  safety: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nSeguridad: 1) EA y frecuencia. 2) SAEs. 3) Muertes relacionadas. 4) Discontinuaciones. 5) Monitorización adecuada. 6) Riesgo-beneficio. 7) Semáforo: 🟢 bien reportado / 🟡 incompleto / 🔴 deficiente.`,
+  integrity: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nEvaluá los conflictos de interés (COI) reportados en el paper:\n- COI declarado: describir lo que el paper declara.\n- Rol del financiador en diseño/análisis/reporte: describir.\n- Financiamiento y afiliaciones: describir.\n- Informe selectivo de resultados: describir si se observa.\n- Información no reportada: indicar como "No reportado — no equivale a ausencia de COI".\n- Verificación externa no realizada desde este análisis.\n\nNunca clasificar como "sin conflictos" basándose solo en la ausencia de declaración visible. No asignar un semáforo de "sin conflictos" por inferencia.`,
+  score: p => {
+    const prevs = ['study','objectives','bias','stats','population','safety','integrity']
+      .filter(k => ST.iaResults[k])
+      .map(k => `=== ${k.toUpperCase()} ===\n${ST.iaResults[k].substring(0,600)}`).join('\n\n');
+    return `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${prevs || p.texto.substring(0,3000)}\n\nEvaluá el artículo en estas dimensiones:\n1. Riesgo de sesgo (bajo / algunas preocupaciones / alto) — según la herramienta apropiada al diseño\n2. Certeza de la evidencia (no aplicar GRADE a un paper individual — solo describir)\n3. Precisión (IC, tamaño muestral, potencia)\n4. Consistencia con evidencia previa\n5. Aplicabilidad a la población de interés\n6. Magnitud del beneficio/daño reportado\n7. Limitaciones principales declaradas\n\nConclusión final:\n"Evaluación metodológica — no constituye una recomendación clínica. El juicio clínico final es responsabilidad del profesional."\n\nNunca asignar un puntaje numérico ni recomendar aplicar o no aplicar un resultado.`;
+  },
+  journal: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nJournal club: 1) 5 preguntas de comprensión. 2) 5 preguntas metodológicas profundas (diseño, sesgos, estadística). 3) 3 preguntas de aplicabilidad clínica en LATAM. 4) 2 preguntas provocadoras para debate. 5) Puntos clave que el presentador debe dominar. 6) Mensaje central en una oración.`,
+  retraction: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\nIndicá si tenés conocimiento de retractación, corrección o expresión de preocupación para este artículo HASTA tu fecha de corte de conocimiento:\n1. ¿Conocés una RETRACTACIÓN? Motivo y fecha si los conocés.\n2. ¿Conocés una CORRECCIÓN O ERRATUM?\n3. ¿Conocés ALERTAS DE INTEGRIDAD (expresión de preocupación)?\n4. ¿El autor principal tiene historial conocido de retractaciones?\n\nAclarar SIEMPRE al final:\n"Estado no verificado en tiempo real. Para verificación actual consultar:\n- PubMed → artículo → ver estado\n- Retraction Watch: retractionwatch.com\n- Crossmark: DOI del artículo"`,
+  timeline: () => {
+    const tema = document.getElementById('timeline-tema')?.value || '';
+    return `Generá una línea de tiempo histórica ORIENTATIVA sobre: "${tema}", basada en el conocimiento del modelo hasta su fecha de corte.\n\nIndicá EXPLÍCITAMENTE al inicio: "Esta línea de tiempo es orientativa y se basa en el conocimiento del modelo — puede omitir estudios recientes o contener imprecisiones. Verificar cada referencia por PMID/DOI antes de citarla. Para evidencia actualizada realizar búsqueda en PubMed/Cochrane/MEDLINE."\n\n1. ESTUDIOS PIONEROS\n2. EVIDENCIA INTERMEDIA\n3. TRIALS PIVOTALES\n4. ESTUDIOS CONTRADICTORIOS y cómo se resolvieron\n5. QUÉ CAMBIÓ: qué se confirmó / refutó / sigue en debate\n6. IMPLICACIÓN PARA LA PRÁCTICA EN LATAM\n\nFormato: año — estudio — hallazgo clave — impacto en la práctica\n\nNo presentar estudios como verificados si no podés proporcionar un PMID o DOI concreto.`;
+  },
+  summary: p => {
+    const modo = ST.sumMode, lang = ST.sumLang;
+    const prompts = {
+      traduccion: `Traducí este documento COMPLETO al ${lang}.\nREGLAS ESTRICTAS:\n- Traducción fiel, sin resumir ni omitir\n- Preserva intactos: nombres de fármacos, dosis, valores numéricos, siglas (ESC, AHA, NYHA, etc.)\n- Preserva números de clase y nivel de evidencia exactamente como aparecen\n- Si el texto es muy largo, indicá claramente con [CONTINUA...] al final\n- No agregás comentarios ni interpretaciones propias`,
+      resumen: `Generá un RESUMEN EJECUTIVO MÉDICO en ${lang}.\nESTRUCTURA OBLIGATORIA (7 secciones):\n1. DOCUMENTO: tipo, autores, año, institución emisora\n2. POBLACIÓN-OBJETIVO: a quién se aplica\n3. CAMBIOS vs VERSIÓN ANTERIOR (si aplica)\n4. RECOMENDACIONES CLAVE: lista con Clase y Nivel EXACTOS — no parafrasear, transcribir fielmente [Clase I, Nivel A]\n5. ALGORITMO DE MANEJO: si existe, describir el flujo principal\n6. PUNTOS CONTROVERSIALES O EN DEBATE\n7. IMPLICACIÓN PRÁCTICA PARA LATAM\n\nREGLA CENTRAL: las recomendaciones con Clase y Nivel se preservan TEXTUALMENTE.`,
+      tabla: `Extraé EXCLUSIVAMENTE las recomendaciones en ${lang}.\nPara cada recomendación extraé OBLIGATORIAMENTE:\n- Clase (I / IIa / IIb / III)\n- Nivel de evidencia (A / B / C)\n- Página o sección donde aparece\n- Fragmento textual fuente (máx 50 palabras)\n- Traducción al ${lang}\n\nFORMATO DE SALIDA por recomendación:\nCLASE [X] | NIVEL [Y] | PÁGINA/SECCIÓN: [...] | FUENTE: "[fragmento ≤50 palabras]" | RECOMENDACIÓN: [traducción fiel]\n\nSi no podés localizar página y fragmento fuente: NO incluir esa recomendación en la tabla. Indicá: "Recomendación no verificada — localizar manualmente en el documento."\n\nAl final agregá:\nTOTAL — Clase I: X | IIa: X | IIb: X | III: X | NIVEL A: X | B: X | C: X\n\nREGLAS:\n- No resumir ni parafrasear las recomendaciones\n- Nunca modificar Clase o Nivel respecto al texto original\n- Ordenar por Clase (I primero) y luego Nivel (A primero)`
+    };
+    return `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\n${prompts[modo]}`;
+  },
+  compare: () => {
+    const papers = ST.comparePapers.map((h,i) =>
+      `PAPER ${i+1}: "${h.titulo}" (${h.anio||'s/año'}${h.revista?', '+h.revista:''})\n${h.texto ? h.texto.substring(0,6000) : '[sin texto]'}`
+    ).join('\n\n'+'-'.repeat(40)+'\n\n');
+    return `Comparé sistemáticamente estos ${ST.comparePapers.length} papers:\n\n${papers}\n\nSi la información disponible de algún paper es insuficiente para comparar un campo específico (endpoint primario, safety, etc.), indicá explícitamente: "Dato no disponible en el extracto" — no inferir ni completar.\n\n1. DISEÑO DE CADA ESTUDIO\n2. POBLACIÓN ESTUDIADA\n3. INTERVENCIÓN O EXPOSICIÓN\n4. RESULTADOS PRIMARIOS (cifras exactas)\n5. CONCLUSIONES — ¿consistentes o contradictorias? ¿por qué difieren?\n6. SESGOS Y LIMITACIONES COMPARADAS\n7. APLICABILIDAD A LATAM\n8. VEREDICTO FINAL\n   - Semáforo: 🟢 Evidencia consistente / 🟡 Mixta / 🔴 Contradictoria`;
+  }
+};
+
+const KEY_CONCEPTS = {
+  study: ['Ensayo clínico aleatorizado (ECA)','Estudio de cohortes','Casos y controles','Potencia y cálculo del tamaño muestral'],
+  objectives: ['Significación estadística ≠ relevancia clínica','Valor p','Intervalo de confianza 95%'],
+  bias: ['Sesgo de selección','Sesgo de información','Confusión','Validez interna vs externa'],
+  stats: ['Riesgo relativo (RR)','Hazard ratio (HR)','NNT y NNH','Significación estadística ≠ relevancia clínica'],
+  population: ['Validez interna vs externa','Prevalencia','Incidencia acumulada'],
+  safety: ['NNT y NNH','Reducción absoluta del riesgo (RAR)'],
+  charts: ['Forest plot','Curvas ROC / área bajo la curva (AUC)'],
+  integrity: ['Informe selectivo de resultados'],
+  score: ['Niveles de evidencia (SIGN)','GRADE'],
+  compare: ['Revisión sistemática vs narrativa','Heterogeneidad','Forest plot']
+};
+
+async function callIA(mod) {
+  if (!ST.iaActiva) { alert('Ingresá tu API key primero.'); return; }
+
+  const tipoCredito = mod === 'compare' ? 'comparador' : 'individual';
+  if (!usarCredito(tipoCredito)) return;
+
+  const p = ST.papers[ST.paperActivo];
+  const iaDiv = document.getElementById(`ia-${mod}`);
+  const kcDiv = document.getElementById(`kc-${mod}`);
+  const btn = document.getElementById(`btn-${mod}`);
+  if (btn) btn.disabled = true;
+
+  // Loading
+  iaDiv.innerHTML = `<div class="ia-loading"><div class="ia-spinner"></div> Analizando con IA...</div>`;
+
+  try {
+    let messages;
+    // Charts usa imagen
+    if (mod === 'charts' && ST.chartB64) {
+      messages = [{role:'user', content:[
+        {type:'image', source:{type:'base64', media_type:ST.chartMime||'image/jpeg', data:ST.chartB64}},
+        {type:'text', text:`Analizá esta gráfica del paper "${p.titulo}": 1) Tipo de gráfico. 2) Ejes y variables. 3) Hallazgos principales descritos objetivamente. 4) Significancia estadística: verificá si la figura reporta EXPLÍCITAMENTE valores p, IC 95% o el resultado de una prueba estadística. Si los reporta, describí lo reportado. Si no los reporta, indicá "Significancia estadística no evaluable por inspección visual — verificar en el texto/tablas del artículo". Nunca inferir significancia estadística solo por la separación visual de curvas, barras o puntos. 5) Interpretación en el contexto del paper. 6) Aspectos metodológicos destacables.`}
+      ]}];
+    } else if (p.pdf && ['study','objectives','bias','stats','population','safety','integrity','score','journal','retraction','summary'].includes(mod)) {
+      messages = [{role:'user', content:[
+        {type:'document', source:{type:'base64', media_type:'application/pdf', data:p.pdf}},
+        {type:'text', text: typeof PROMPTS[mod] === 'function' ? PROMPTS[mod](p) : ''}
+      ]}];
+    } else {
+      const prompt = typeof PROMPTS[mod] === 'function' ? PROMPTS[mod](p) : PROMPTS[mod];
+      messages = [{role:'user', content: prompt}];
+    }
+
+    const resp = await llamarIA(messages, SYSTEM);
+    ST.iaResults[mod] = resp;
+
+    iaDiv.innerHTML = `
+      <div class="ia-response">
+        <div class="ia-response-label">✦ EvidenceSmart AI</div>
+        <div class="ia-response-text">${escHtml(resp)}</div>
+      </div>`;
+
+    // Conceptos clave
+    if (kcDiv && KEY_CONCEPTS[mod]) {
+      const chips = KEY_CONCEPTS[mod].map(c => {
+        const idx = GUIDE_DATA.findIndex(g => g.t === c);
+        return idx >= 0 ? `<div class="concept-chip" onclick="abrirGuia(${idx})">${GUIDE_DATA[idx].icon} ${c}</div>` : '';
+      }).filter(Boolean).join('');
+      if (chips) kcDiv.innerHTML = `
+        <div class="key-concepts">
+          <div class="key-concepts-label">📖 Conceptos clave — ver en la guía</div>
+          <div class="key-concepts-chips">${chips}</div>
+        </div>`;
+    }
+
+    // Mostrar botón guardar si es summary
+    if (mod === 'summary') document.getElementById('btn-save-lib').style.display = 'inline-flex';
+
+  } catch(e) {
+    iaDiv.innerHTML = `<div class="alert alert-danger">⚠️ Error: ${escHtml(e.message)}</div>`;
+  }
+  if (btn) btn.disabled = false;
+}
+
+function escHtml(s) {
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// FIX 13: advertencia (una vez por sesión) de que el documento se envía a un proveedor de IA externo.
+const MAX_PDF = 20 * 1024 * 1024; // 20 MB
+const MAX_IMG = 5 * 1024 * 1024;  // 5 MB
+function avisoEnvioExterno() {
+  try { if (sessionStorage.getItem('es_aviso_envio') === '1') return true; } catch(e) {}
+  const ok = confirm('⚠ Este documento será enviado a Anthropic (proveedor de IA externo) para su procesamiento.\n\nNo cargar:\n• Documentos con datos clínicos identificables\n• Información cuya política institucional prohíba el procesamiento externo\n• Datos de pacientes\n\n¿Entendido — continuar?');
+  if (ok) { try { sessionStorage.setItem('es_aviso_envio','1'); } catch(e) {} return true; }
+  return false;
+}
+function chequearArchivo(f, input, max, etiqueta) {
+  if (!avisoEnvioExterno()) { if (input) input.value=''; return false; }
+  if (f.size > max) { alert('Archivo demasiado grande. Máximo: ' + etiqueta + '.'); if (input) input.value=''; return false; }
+  return true;
+}
+
+// FIX 4: protocolo/registro para outcome switching
+function objProtoToggle() {
+  const v = document.getElementById('obj-protocolo').value;
+  document.getElementById('obj-proto-upload').style.display = v === 'si' ? 'block' : 'none';
+  document.getElementById('obj-proto-warn').style.display = v === 'no' ? 'block' : 'none';
+  if (v === 'no') ST.protocoloTexto = '';
+}
+function onProtoFile(input) {
+  const f = input.files[0]; if (!f) return;
+  if (!chequearArchivo(f, input, MAX_PDF, '20 MB')) return;
+  const st = document.getElementById('obj-proto-status');
+  const reader = new FileReader();
+  reader.onload = e => {
+    ST.protocoloTexto = String(e.target.result || '').substring(0, 8000);
+    if (st) st.textContent = 'Protocolo cargado (' + f.name + '). Se usará como contexto para comparar los outcomes.';
+  };
+  reader.readAsText(f);
+  input.value = '';
+}
+
+// ══════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════
+function onChart(input) {
+  const f = input.files[0]; if (!f) return;
+  if (!chequearArchivo(f, input, MAX_IMG, '5 MB')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    ST.chartB64 = e.target.result.split(',')[1];
+    ST.chartMime = f.type;
+    document.getElementById('chart-placeholder').style.display = 'none';
+    document.getElementById('chart-preview-wrap').style.display = 'block';
+    document.getElementById('chart-preview').src = e.target.result;
+    document.getElementById('btn-charts').disabled = false;
+    document.getElementById('btn-chart-clear').style.display = 'inline-flex';
+  };
+  reader.readAsDataURL(f);
+  input.value='';
+}
+function clearChart() {
+  ST.chartB64=''; ST.chartMime='';
+  document.getElementById('chart-placeholder').style.display = 'block';
+  document.getElementById('chart-preview-wrap').style.display = 'none';
+  document.getElementById('btn-charts').disabled = true;
+  document.getElementById('btn-chart-clear').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
+// SMART SUMMARY
+// ══════════════════════════════════════════════
+function setSumMode(modo, el) {
+  ST.sumMode = modo;
+  document.querySelectorAll('.sum-mode-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  syncSumUI();
+}
+function setLang(lang, el) {
+  ST.sumLang = lang;
+  document.querySelectorAll('.lang-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+function syncSumUI() {
+  const btn = document.getElementById('btn-summary');
+  if (!btn) return;
+  const labels = {resumen:'📋 Generar resumen ejecutivo', traduccion:'🌐 Traducir documento', tabla:'📊 Extraer tabla de recomendaciones'};
+  btn.textContent = labels[ST.sumMode] || labels.resumen;
+  const info = document.getElementById('sum-mode-info');
+  if (ST.sumMode === 'traduccion') {
+    info.style.display = 'block';
+    info.textContent = '🌐 Traducción fiel: se envía el documento completo. Para guías >30 páginas el resultado puede cortarse — en ese caso procesá por partes.';
+  } else if (ST.sumMode === 'tabla') {
+    info.style.display = 'block';
+    info.textContent = '📊 Modo Tabla: extrae SOLO las recomendaciones con Clase y Nivel. No resume texto. Perfecto para guías ESC, AHA, ACC.';
+  } else {
+    info.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════════
+// BIBLIOTECA
+// ══════════════════════════════════════════════
+function guardarBiblioteca() {
+  const p = ST.papers[ST.paperActivo];
+  if (!p.titulo && !p.texto) return;
+  ST.biblioteca.unshift({
+    id: Date.now(),
+    titulo: p.titulo || 'Sin título',
+    anio: p.anio,
+    revista: p.revista,
+    resumen: ST.iaResults['summary'] || '',
+    analisis: {...ST.iaResults},
+    fecha: new Date().toLocaleDateString('es-UY')
+  });
+  alert('✅ Paper guardado en tu biblioteca.');
+}
+function renderLibrary() {
+  const el = document.getElementById('library-list');
+  if (ST.biblioteca.length === 0) {
+    el.innerHTML = `<div class="alert alert-info">Tu biblioteca está vacía. Analizá un paper, generá el resumen en SmartSummary y presioná "Guardar en biblioteca".</div>`;
+    return;
+  }
+  el.innerHTML = ST.biblioteca.map(item => `
+    <div class="library-item">
+      <div class="library-item-header">
+        <div>
+          <div class="library-item-title">${escHtml(item.titulo)}</div>
+          <div class="library-item-meta">${escHtml(item.revista||'')} ${escHtml(item.anio||'')} · Guardado: ${escHtml(item.fecha)}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="eliminarBib(${item.id})">✕ Eliminar</button>
+      </div>
+      ${item.resumen?`<div class="library-item-body">
+        <div class="library-resumen-label">Resumen guardado</div>
+        <div class="library-resumen-text">${escHtml(item.resumen.substring(0,400))}${item.resumen.length>400?'...':''}</div>
+      </div>`:''}
+    </div>
+  `).join('');
+}
+function eliminarBib(id) {
+  ST.biblioteca = ST.biblioteca.filter(i => i.id !== id);
+  renderLibrary();
+}
+
+// ══════════════════════════════════════════════
+// COMPARADOR
+// ══════════════════════════════════════════════
+function setCompTab(tab) {
+  ST.compTab = tab;
+  document.getElementById('comp-tab-T').classList.toggle('active', tab==='T');
+  document.getElementById('comp-tab-P').classList.toggle('active', tab==='P');
+  document.getElementById('comp-texto-wrap').style.display = tab==='T'?'block':'none';
+  document.getElementById('comp-pdf-wrap').style.display  = tab==='P'?'block':'none';
+}
+function onCompPDF(input) {
+  const f = input.files[0]; if(!f) return;
+  if (!chequearArchivo(f, input, MAX_PDF, '20 MB')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    ST.compPdfB64 = e.target.result.split(',')[1];
+    ST.compPdfNombre = f.name;
+    document.getElementById('comp-pdf-label').textContent = `✅ ${f.name}`;
+    document.getElementById('comp-pdf-label').style.color = 'var(--success)';
+  };
+  reader.readAsDataURL(f);
+  input.value='';
+}
+
+async function agregarCompare() {
+  const titulo = document.getElementById('comp-titulo').value?.trim();
+  if (!titulo) { alert('Ingresá el título.'); return; }
+  const anio = document.getElementById('comp-anio').value?.trim() || '';
+  const revista = document.getElementById('comp-revista').value?.trim() || '';
+  let texto = '';
+
+  if (ST.compTab === 'T') {
+    texto = document.getElementById('comp-texto').value?.trim() || '';
+  } else if (ST.compTab === 'P' && ST.compPdfB64 && ST.iaActiva) {
+    try {
+      // FIX: extraer el texto lo más completo posible (no un resumen breve) para no perder
+      // metodología, resultados ni eventos adversos en la comparación.
+      texto = await llamarIA([{role:'user',content:[
+        {type:'document', source:{type:'base64',media_type:'application/pdf',data:ST.compPdfB64}},
+        {type:'text', text:'Extraé el texto completo del artículo (abstract, métodos, resultados con cifras, tablas de resultados, eventos adversos y conclusiones). Solo texto, sin resumir ni omitir.'}
+      ]}], SYSTEM, 4000);
+      usarCredito();
+    } catch(e) { texto = ''; }
+  }
+
+  ST.comparePapers.push({id:Date.now(), titulo, anio, revista, texto});
+
+  // Reset form
+  document.getElementById('comp-titulo').value='';
+  document.getElementById('comp-anio').value='';
+  document.getElementById('comp-revista').value='';
+  document.getElementById('comp-texto').value='';
+  document.getElementById('comp-pdf-label').textContent='📄 Subir PDF';
+  document.getElementById('comp-pdf-label').style.color='';
+  ST.compPdfB64=''; ST.compPdfNombre='';
+
+  renderComparePapers();
+}
+
+function renderComparePapers() {
+  const list = document.getElementById('compare-papers-list');
+  const n = ST.comparePapers.length;
+  document.getElementById('compare-count').textContent = `${n} paper${n!==1?'s':''} cargado${n!==1?'s':''}`;
+  document.getElementById('compare-add-title').textContent = `➕ Paper ${n+1}`;
+
+  list.innerHTML = ST.comparePapers.map(p => `
+    <div class="compare-paper-card">
+      <div class="compare-paper-header">
+        <span>📄 ${escHtml(p.titulo.substring(0,30))}</span>
+        <button style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:.72rem" onclick="quitarComparePaper(${p.id})">✕</button>
+      </div>
+      <div class="compare-paper-body">
+        <div class="compare-paper-title">${escHtml(p.titulo)}</div>
+        <div class="compare-paper-meta">${escHtml(p.anio||'')}${p.revista?' · '+escHtml(p.revista):''}</div>
+        <div style="margin-top:8px;font-size:.72rem">
+          ${p.texto?`<span style="background:var(--accentLt);color:var(--accent);padding:2px 8px;border-radius:10px;font-weight:600">📝 Texto</span>`:`<span style="background:var(--warnLt);color:var(--warn);padding:2px 8px;border-radius:10px;font-weight:600">⚠️ Solo título</span>`}
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  const canCompare = n >= 2;
+  document.getElementById('compare-action').style.display = canCompare ? 'block' : 'none';
+  if (canCompare) document.getElementById('compare-n').textContent = n;
+
+  // Slot ocultar si ya hay 6
+  document.getElementById('compare-add-slot').style.display = n < 6 ? 'block' : 'none';
+
+  // Mensajes
+  const prevAlerts = document.querySelectorAll('#mod-compare .alert-auto');
+  prevAlerts.forEach(e=>e.remove());
+  if (n === 0) insertAlert('compare','info','Agregá al menos 2 papers usando la tarjeta de arriba.');
+  if (n === 1) insertAlert('compare','warn','Falta al menos 1 paper más para comparar.');
+}
+
+function insertAlert(mod, tipo, msg) {
+  const div = document.createElement('div');
+  div.className = `alert alert-${tipo} alert-auto`;
+  div.innerHTML = msg;
+  const container = document.getElementById(`mod-${mod}`);
+  const action = document.getElementById('compare-action');
+  if (action) container.insertBefore(div, action);
+}
+
+function quitarComparePaper(id) {
+  ST.comparePapers = ST.comparePapers.filter(p => p.id !== id);
+  renderComparePapers();
+}
+
+// ══════════════════════════════════════════════
+// EXPORTAR
+// ══════════════════════════════════════════════
+function exportarInforme() {
+  const p = ST.papers[ST.paperActivo];
+  const lineas = [];
+  lineas.push('═'.repeat(60));
+  lineas.push('EVIDENCESMART — INFORME DE ANÁLISIS METODOLÓGICO');
+  lineas.push('CeiboMed · ceibomed.com');
+  lineas.push(`Fecha: ${new Date().toLocaleDateString('es-UY')}`);
+  lineas.push('═'.repeat(60));
+  lineas.push('');
+  lineas.push(`PAPER ANALIZADO: ${p.titulo||'Sin título'}`);
+  lineas.push(`Año: ${p.anio||'N/D'} | Revista: ${p.revista||'N/D'}`);
+  lineas.push('');
+
+  const modulos = {study:'🔬 DISEÑO DEL ESTUDIO',objectives:'🎯 OBJETIVOS',bias:'⚖️ SESGOS Y CALIDAD',stats:'📊 ESTADÍSTICA',population:'👥 POBLACIÓN',safety:'🛡️ SEGURIDAD',integrity:'🔍 CONFLICTOS',score:'⭐ EVALUACIÓN METODOLÓGICA',summary:'📝 RESUMEN/TRADUCCIÓN',journal:'🗣️ JOURNAL CLUB',retraction:'🚨 RETRACTACIÓN',timeline:'📅 LÍNEA DE TIEMPO',compare:'⚖️ COMPARADOR'};
+
+  let hayAlgo = false;
+  Object.entries(modulos).forEach(([key,label]) => {
+    const r = ST.iaResults[key];
+    if (r) {
+      hayAlgo = true;
+      lineas.push('─'.repeat(60));
+      lineas.push(label);
+      lineas.push('─'.repeat(60));
+      lineas.push(r);
+      lineas.push('');
+    }
+  });
+
+  if (!hayAlgo) { alert('No hay análisis para exportar. Realizá algún análisis primero.'); return; }
+
+  lineas.push('═'.repeat(60));
+  lineas.push('Generado por EvidenceSmart — CeiboMed');
+  lineas.push('═'.repeat(60));
+
+  const blob = new Blob([lineas.join('\n')], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `EvidenceSmart_${(p.titulo||'informe').substring(0,30).replace(/\s+/g,'_')}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════
+// GUÍA METODOLÓGICA
+// ══════════════════════════════════════════════
+const CATS = ['Diseño y niveles de evidencia','Medidas de frecuencia','Medidas de asociación y efecto','Estadística e interpretación','Validez y sesgos','Calidad del ensayo clínico (ECA)','Pruebas diagnósticas','Revisiones sistemáticas y meta-análisis','Lectura crítica y síntesis'];
+
+const GUIDE_DATA = [
+  {cat:0,nivel:'plus',icon:'🗒️',t:'Analítico vs descriptivo',d:'Los estudios descriptivos describen la frecuencia y las características de un problema de salud (dónde, cuándo, quiénes) y sirven para generar hipótesis. Los analíticos buscan establecer relaciones causales entre una exposición y un efecto (por qué).'},
+  {cat:0,nivel:'plus',icon:'⚗️',t:'Experimental vs observacional',d:'En los estudios experimentales el investigador asigna y controla deliberadamente la exposición. En los observacionales solo observa sin intervenir en la asignación.'},
+  {cat:0,nivel:'base',icon:'🎲',t:'Ensayo clínico aleatorizado (ECA)',d:'Se aplica una intervención a un grupo y se compara con un control o placebo; los pacientes se asignan al azar para que ambos grupos sean iguales salvo en la intervención. Puede ser en paralelo (grupos distintos) o cruzado/crossover (cada sujeto actúa como su propio control, con período de lavado entre intervenciones).',ojo:'Es el patrón de oro para valorar la eficacia de intervenciones.'},
+  {cat:0,nivel:'base',icon:'👣',t:'Estudio de cohortes',d:'Parte de la exposición y sigue a los sujetos en el tiempo para ver quién desarrolla el efecto (dirección: causa → efecto). Observacional, analítico y longitudinal; prospectivo o retrospectivo (cohorte histórica). Permite calcular incidencia y riesgo relativo.'},
+  {cat:0,nivel:'base',icon:'🔙',t:'Casos y controles',d:'Parte del efecto: identifica enfermos (casos) y sanos (controles) y busca hacia atrás la exposición previa. Retrospectivo, observacional. No permite calcular incidencia ni RR; usa el odds ratio (OR). Muy eficiente para enfermedades raras.',ojo:'La dirección temporal va del efecto a la causa — al revés que las cohortes.'},
+  {cat:0,nivel:'base',icon:'📸',t:'Transversal / de prevalencia',d:'Exposición y efecto se miden en el mismo momento (foto instantánea). Sin secuencia temporal. Permite estimar prevalencia y generar hipótesis, pero no permite establecer causalidad.',ej:'Si hallamos asociación entre poca exposición solar e hipovitaminosis D, no podemos determinar cuál es la causa.'},
+  {cat:0,nivel:'plus',icon:'📋',t:'Serie de casos',d:'Grupo de pacientes con diagnóstico similar descritos sin grupo de comparación. Útil para caracterizar una enfermedad o la respuesta a un tratamiento. Nivel 3 en la escala SIGN — uno de los más bajos.'},
+  {cat:0,nivel:'plus',icon:'🧪',t:'Pruebas diagnósticas — tipos de estudio',d:'Evalúan la capacidad de una prueba para clasificar a pacientes como sanos o enfermos, comparándola con un patrón de oro. El diseño más frecuente es transversal (ambas pruebas en el mismo momento); también se usan casos-controles y cohortes según la pregunta.'},
+  {cat:0,nivel:'plus',icon:'🪜',t:'Niveles de evidencia (SIGN)',d:'Escala estándar que combina diseño y riesgo de sesgo. 1++ y 1+ para meta-análisis y ECA de alta y moderada calidad; 1− para ECA con alto riesgo de sesgo; 2++ / 2+ / 2− para cohortes y casos-controles; 3 para series de casos; 4 para opinión de expertos.'},
+  {cat:0,nivel:'base',icon:'🔺',t:'Pirámide de la evidencia',d:'Ordena los diseños por su capacidad de inferir causalidad: revisiones sistemáticas y meta-análisis en la cúspide, luego ECA, cohortes, casos-controles, descriptivos e investigación animal en la base. GRADE matiza esta jerarquía: un observacional bien hecho puede superar a un ECA con sesgos.'},
+  {cat:1,nivel:'base',icon:'📊',t:'Prevalencia',d:'Proporción de sujetos de una población que presentan la enfermedad o factor en un momento dado. Es una foto del estado actual.',f:'Prevalencia = personas con enfermedad / población total'},
+  {cat:1,nivel:'base',icon:'📈',t:'Incidencia acumulada',d:'Proporción de casos nuevos que aparecen en un grupo de sujetos sanos durante un período determinado. Representa el riesgo individual de enfermar en ese período.',f:'IA = casos nuevos en el período / sujetos susceptibles al inicio'},
+  {cat:1,nivel:'plus',icon:'⏱️',t:'Densidad de incidencia',d:'Número de casos nuevos por unidad de persona-tiempo. A diferencia de la incidencia acumulada, tiene en cuenta el tiempo real que cada sujeto estuvo a riesgo — especialmente útil cuando el seguimiento varía entre individuos.',f:'DI = casos nuevos / suma de personas-tiempo a riesgo'},
+  {cat:2,nivel:'base',icon:'➗',t:'Riesgo relativo (RR)',d:'Compara la incidencia del evento entre expuestos y no expuestos (o intervención vs control). Se usa en ECA y cohortes. RR>1: factor de riesgo; RR<1: factor protector; RR=1: sin diferencia.',f:'RR = incidencia en expuestos / incidencia en no expuestos',ojo:'Si el IC 95% incluye el 1 (valor nulo), el resultado no es estadísticamente significativo.'},
+  {cat:2,nivel:'base',icon:'🎲',t:'Odds ratio (OR)',d:'Medida de asociación propia de los estudios de casos y controles, donde no se puede calcular incidencia. El OR es buena aproximación al RR cuando la enfermedad es poco frecuente.',f:'OR = (a×d) / (b×c)  [tabla 2×2]',ojo:'El OR sobreestima el RR cuando la enfermedad es frecuente (>10%). No interpretarlo como RR en esos casos.'},
+  {cat:2,nivel:'base',icon:'⏳',t:'Hazard ratio (HR)',d:'Compara la tasa (velocidad) de aparición del evento entre grupos a lo largo del tiempo. Es la medida del análisis de supervivencia (Kaplan-Meier, regresión de Cox). HR=1: sin diferencia; HR<1: el evento ocurre más lento en el grupo de interés.',ojo:'Asume que los riesgos se mantienen proporcionales en el tiempo (supuesto de proporcionalidad de riesgos de Cox).'},
+  {cat:2,nivel:'base',icon:'➖',t:'Reducción absoluta del riesgo (RAR)',d:'Diferencia de incidencias entre control e intervención. Depende del riesgo basal y por eso es clínicamente más informativa que la RRR sola.',f:'RAR = IA control − IA intervención',ej:'IA control = 20%, IA intervención = 10% → RAR = 10%. NNT = 1/0,10 = 10 pacientes para prevenir un evento.'},
+  {cat:2,nivel:'base',icon:'📉',t:'Reducción relativa del riesgo (RRR)',d:'Disminución del riesgo en el grupo tratado expresada como porcentaje respecto al control. Fácil de entender pero potencialmente engañosa si el riesgo basal es muy bajo.',f:'RRR = (IA control − IA intervención) / IA control × 100',ojo:'Un 50% de RRR puede significar reducir de 2% a 1% (RAR=1%, NNT=100) o de 40% a 20% (RAR=20%, NNT=5). Siempre leer junto a la RAR y el NNT.'},
+  {cat:2,nivel:'base',icon:'🔢',t:'NNT y NNH',d:'El Número Necesario a Tratar (NNT) indica cuántos pacientes hay que tratar para evitar un evento adverso. El NNH es el equivalente para daños.',f:'NNT = 1 / RAR',ej:'RAR = 10% → NNT = 1/0,10 = 10 pacientes a tratar para evitar un evento.',ojo:'El NNT debe interpretarse SIEMPRE junto con: el outcome específico evaluado, el período de seguimiento del estudio, el riesgo basal de la población estudiada, los daños asociados (NNH) y el contexto clínico del paciente. No existen etiquetas universales: un NNT "alto" para un outcome grave puede ser clínicamente importante; un NNT "bajo" para un outcome trivial puede no serlo.'},
+  {cat:3,nivel:'base',icon:'🅿️',t:'Valor p',d:'Probabilidad de obtener el resultado observado (o uno más extremo) si la hipótesis nula fuera cierta. Por convención, p<0,05 se considera estadísticamente significativo.',ojo:'El valor p NO es la probabilidad de que la hipótesis sea verdadera. Un p=0,04 no significa "96% de chance de que el tratamiento funcione".'},
+  {cat:3,nivel:'base',icon:'↔️',t:'Intervalo de confianza 95%',d:'Rango dentro del cual, con 95% de confianza, se encuentra el verdadero valor del parámetro en la población. Más informativo que la p sola: muestra magnitud y precisión del efecto a la vez.',f:'RR/OR/HR: IC incluye 1 → no significativo.\nDiferencias/RAR: IC incluye 0 → no significativo.\nIC estrecho = preciso; IC amplio = impreciso (muestra pequeña).'},
+  {cat:3,nivel:'base',icon:'⚠️',t:'Significación estadística ≠ relevancia clínica',d:'Con un N muy grande, un efecto mínimo puede ser estadísticamente significativo sin ninguna importancia clínica. La relevancia depende de: magnitud del efecto, gravedad del problema, morbimortalidad, costo y frecuencia de la enfermedad.',ej:'Un fármaco que reduce 0,01% las infecciones puede tener p=0,03 con 50.000 pacientes y ser clínicamente irrelevante.'},
+  {cat:3,nivel:'plus',icon:'🎯',t:'Error aleatorio vs sistemático',d:'El error aleatorio (azar) desvía el resultado de forma no sistemática por trabajar con muestras; se reduce aumentando el N y se refleja en la precisión (IC). El error sistemático (sesgo) desvía el resultado siempre en la misma dirección por fallas metodológicas; afecta la validez interna.',ojo:'El sesgo NO se corrige aumentando el tamaño de la muestra.'},
+  {cat:3,nivel:'plus',icon:'🔋',t:'Potencia y cálculo del tamaño muestral',d:'La potencia estadística (1−β, habitualmente 80-90%) es la capacidad del estudio de detectar un efecto que realmente existe. Depende de: nivel de significancia α, magnitud del efecto esperado, variabilidad y N. Un estudio sin cálculo previo de N o con muestra insuficiente puede dar falsos negativos.'},
+  {cat:4,nivel:'plus',icon:'🎛️',t:'Validez interna vs externa',d:'La validez interna es el grado en que los resultados del estudio reflejan la realidad del fenómeno estudiado; su principal amenaza es el sesgo. La validez externa es el grado en que esos resultados son aplicables a la población diana o general; su principal amenaza son los criterios de inclusión/exclusión demasiado restrictivos.'},
+  {cat:4,nivel:'base',icon:'🎣',t:'Sesgo de selección',d:'Los grupos comparados difieren de forma sistemática por cómo fueron seleccionados. Subtipos: voluntarios, trabajador sano, Berkson, Neyman, detección y tiempo inmortal.'},
+  {cat:4,nivel:'base',icon:'📝',t:'Sesgo de información',d:'Error en la recogida de datos de los participantes ya incluidos. No diferencial: igual en ambos grupos → tiende a infraestimar el efecto. Diferencial: distinto entre grupos → puede sesgar en cualquier dirección y es más peligroso.',ej:'Sesgo de memoria/recuerdo en casos-controles: los casos recuerdan mejor sus exposiciones pasadas que los controles.'},
+  {cat:4,nivel:'base',icon:'🔀',t:'Confusión',d:'Una tercera variable distorsiona la asociación real entre exposición y efecto. Para actuar como factor de confusión debe: (1) estar asociada a la exposición, (2) estar asociada a la enfermedad, y (3) NO ser un eslabón intermedio en la cadena causal.',f:'Control en el diseño: aleatorización, restricción, emparejamiento.\nControl en el análisis: estratificación, regresión logística, regresión de Cox.',ej:'Al estudiar alcohol y cáncer de esófago, el tabaco es un factor de confusión.'},
+  {cat:5,nivel:'base',icon:'🎰',t:'Aleatorización',d:'Asignar al azar qué intervención recibe cada paciente para que factores pronósticos y confusores conocidos o desconocidos se distribuyan por igual en ambos grupos.',f:'Tipos válidos: simple, por bloques, estratificada.',ojo:'Métodos inadecuados por predecibles: día de ingreso, fecha de nacimiento, terminación del DNI, número de historia clínica.'},
+  {cat:5,nivel:'plus',icon:'🔒',t:'Ocultación de la asignación (≠ cegamiento)',d:'Impedir que quien recluta o asigna pueda prever a qué grupo irá el próximo participante. Métodos válidos: asignación telefónica centralizada, control por farmacia, sobres opacos sellados y numerados secuencialmente.',ojo:'No confundir con el cegamiento: la ocultación protege ANTES de la asignación; el cegamiento actúa DESPUÉS.'},
+  {cat:5,nivel:'base',icon:'🙈',t:'Cegamiento / enmascaramiento',d:'Medidas para que pacientes y/o investigadores no conozcan el tratamiento asignado. Simple ciego: solo el paciente desconoce. Doble ciego: paciente e investigador. Triple ciego: también el analista. Abierto: todos lo conocen.',ojo:'El cegamiento es más crítico cuando el desenlace es subjetivo (dolor, bienestar) que cuando es objetivo (mortalidad, valores de laboratorio).'},
+  {cat:5,nivel:'plus',icon:'🚪',t:'Pérdidas y regla del 5% / 20%',d:'Orientación: pérdidas <5% suelen ser aceptables; >20% comprometen la validez. Lo decisivo no es el número sino el motivo: si las pérdidas se relacionan con el desenlace o difieren entre grupos, introducen sesgo.'},
+  {cat:5,nivel:'base',icon:'🎯',t:'Intención de tratar (ITT) vs por protocolo',d:'El análisis ITT mantiene a cada paciente en el grupo al que fue aleatorizado, reciba o no la intervención. Preserva la comparabilidad inicial, es más conservador y refleja mejor la efectividad en la vida real.',ojo:"'Intención de tratar modificada' (mITT) puede introducir sesgo si las exclusiones no son balanceadas."},
+  {cat:5,nivel:'plus',icon:'✂️',t:'Informe selectivo de resultados',d:'Ocurre cuando los autores publican solo parte de los desenlaces medidos, habitualmente los favorables. Se detecta comparando con el protocolo registrado (clinicaltrials.gov) o notando la ausencia de variables obvias.',ej:'Se reporta el efecto sobre el colesterol total pero no sobre el LDL ni el HDL.'},
+  {cat:6,nivel:'base',icon:'🔍',t:'Sensibilidad y especificidad',d:'La sensibilidad (S) es la proporción de enfermos con prueba positiva — identifica correctamente a los enfermos. La especificidad (E) es la proporción de sanos con prueba negativa — identifica a los sanos. Son propiedades intrínsecas de la prueba, independientes de la prevalencia.',f:'S = VP / (VP + FN)\nE = VN / (VN + FP)'},
+  {cat:6,nivel:'base',icon:'🎯',t:'Valores predictivos (VPP / VPN)',d:'El VPP es la probabilidad de estar realmente enfermo si la prueba fue positiva. El VPN es la probabilidad de estar sano si fue negativa. Es lo que realmente interesa al clínico.',f:'VPP = VP / (VP + FP)\nVPN = VN / (VN + FN)',ojo:'A diferencia de S y E, los valores predictivos dependen de la prevalencia.'},
+  {cat:6,nivel:'plus',icon:'🔁',t:'Razones de verosimilitud (RVP / RVN)',d:'Miden cuánto más probable es un resultado en un enfermo respecto a un sano. No dependen de la prevalencia y sirven para actualizar la probabilidad pre-test (teorema de Bayes clínico).',f:'RVP = S / (1 − E)\nRVN = (1 − S) / E',ej:'Una RVP de 10 indica que un positivo es 10 veces más probable en un enfermo que en un sano. RVP>10 o RVN<0,1 son clínicamente muy útiles.'},
+  {cat:6,nivel:'base',icon:'📐',t:'Curvas ROC / área bajo la curva (AUC)',d:'Para pruebas con resultado continuo (glucemia, PSA). Grafican la sensibilidad (eje Y) frente a 1−especificidad (eje X) para cada punto de corte. El AUC mide la capacidad discriminatoria global: 0,5 = azar; 1 = discriminación perfecta.'},
+  {cat:7,nivel:'base',icon:'🗂️',t:'Revisión sistemática vs narrativa',d:'La revisión sistemática (RS) responde una pregunta concreta con métodos explícitos y reproducibles para identificar, seleccionar y evaluar la evidencia. La revisión narrativa también resume la literatura pero sin metodología sistemática, siendo más susceptible a resultados imprecisos o sesgados.'},
+  {cat:7,nivel:'base',icon:'🧭',t:'Etapas de una RS (PICO)',d:'Cinco pasos: (1) pregunta PICO bien definida (Paciente–Intervención–Comparación–Outcome); (2) búsqueda exhaustiva en múltiples bases (Medline, Embase, Cochrane, literatura gris); (3) selección con criterios definidos a priori; (4) lectura crítica y extracción de datos; (5) síntesis cualitativa y/o cuantitativa (meta-análisis).'},
+  {cat:7,nivel:'plus',icon:'🌡️',t:'Heterogeneidad',d:'Antes de combinar estudios hay que evaluar si son suficientemente comparables en diseño, población, intervención y desenlace. Se mide con el estadístico I²: <25% = baja heterogeneidad; >75% = muy alta, combinar puede no ser apropiado.'},
+  {cat:7,nivel:'plus',icon:'⚖️',t:'Efectos fijos vs efectos aleatorios',d:'Efectos fijos: asume un único efecto real en todos los estudios — la variabilidad es solo azar. Efectos aleatorios: asume que el efecto varía entre estudios y estima la media de esa distribución; es más conservador (IC más amplio) y se usa ante heterogeneidad importante.'},
+  {cat:7,nivel:'base',icon:'🌲',t:'Forest plot',d:'Representación gráfica del meta-análisis. Cada línea horizontal es un estudio con su IC; el cuadrado es más grande cuanto mayor es el peso del estudio. El rombo al final es el estimador combinado con su IC. La línea vertical marca el valor nulo (1 para RR/OR, 0 para diferencias).'},
+  {cat:7,nivel:'plus',icon:'🔻',t:'Funnel plot y sesgo de publicación',d:'Gráfico de embudo que enfrenta el efecto de cada estudio con su precisión o tamaño muestral. Sin sesgo los puntos forman un embudo simétrico. Si aparece asimétrico o truncado, se sospecha sesgo de publicación.',ojo:'Otros sesgos también causan asimetría: sesgo de idioma inglés, base de datos única, citación selectiva o publicación múltiple del mismo estudio.'},
+  {cat:7,nivel:'plus',icon:'🧷',t:'Análisis de sensibilidad y subgrupos',d:'El análisis de sensibilidad repite el meta-análisis excluyendo estudios (los de menor calidad, los no publicados) para comprobar si el resultado se mantiene estable. El análisis por subgrupos combina por separado según una variable (año, tipo de fármaco, edad) para ver si el efecto difiere entre ellos.'},
+  {cat:8,nivel:'plus',icon:'📑',t:'Plantillas de lectura crítica',d:'Herramientas estandarizadas por tipo de diseño. CASPe (en español, cubre casi todos los diseños). SIGN (con nota explicativa por ítem). Osteba (desglosa cada criterio, con software gratuito). Joanna Briggs/JBI (incluye cualitativos). Reducen la subjetividad.'},
+  {cat:8,nivel:'base',icon:'🎚️',t:'GRADE',d:'Sistema que gradúa la certeza de la evidencia para una pregunta clínica concreta, no solo por el diseño del estudio. Un observacional bien hecho puede subir de nivel; un ECA con sesgos puede bajar. Evalúa: riesgo de sesgo, inconsistencia, imprecisión, evidencia indirecta y sesgo de publicación.',ojo:'GRADE no es una escala de calidad de un paper individual — evalúa la certeza de un cuerpo de evidencia para un outcome específico (revisiones sistemáticas / metaanálisis).'},
+  {cat:8,nivel:'plus',icon:'🗒️',t:'Tabla de evidencia',d:'Resume en un solo vistazo los estudios que responden a una misma pregunta. Debe incluir: datos bibliográficos (autor, año, tipo), características de la población y N, intervenciones comparadas, medidas de resultado, resumen de resultados, limitaciones y valoración de calidad (++ / + / −).'},
+  {cat:8,nivel:'plus',icon:'📏',t:'Guías de reporte (CONSORT / STROBE / PRISMA)',d:'Estándares de publicación transparente. CONSORT para ECA (incluye diagrama de flujo de pacientes). STROBE para estudios observacionales. PRISMA para revisiones sistemáticas y meta-análisis. Su ausencia en un paper dificulta evaluar posibles sesgos.'}
+];
+
+let guideNivel = 'all';
+let guideSearch = '';
+
+function setNivel(nivel, el) {
+  guideNivel = nivel;
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  renderGuide();
+}
+function filterGuide() {
+  guideSearch = document.getElementById('guide-search').value.trim().toLowerCase();
+  renderGuide();
+}
+function renderGuide() {
+  const container = document.getElementById('guide-cats');
+  const highlight = ST.guideHighlight;
+  let html = '';
+
+  CATS.forEach((cat, ci) => {
+    let items = GUIDE_DATA
+      .map((g,i) => ({...g, i}))
+      .filter(g => g.cat === ci)
+      .filter(g => guideNivel === 'all' || g.nivel === guideNivel)
+      .filter(g => !guideSearch || (g.t+' '+g.d+' '+(g.f||'')+' '+(g.ej||'')+' '+(g.ojo||'')).toLowerCase().includes(guideSearch));
+
+    if (items.length === 0) return;
+
+    html += `<div class="guide-section">
+      <div class="guide-section-title">${cat}</div>
+      <div class="guide-cards">
+        ${items.map(g => {
+          const isHL = highlight === g.i;
+          return `<div class="guide-card${isHL?' highlight':''}" id="ge-${g.i}">
+            <div class="guide-card-head">
+              <span class="guide-card-icon">${g.icon}</span>
+              <span class="guide-card-title">${g.t}</span>
+              <span class="guide-card-nivel ${g.nivel}">${g.nivel === 'base' ? 'Base' : 'Plus'}</span>
+            </div>
+            <div class="guide-card-body">${escHtml(g.d)}
+              ${g.f?`<div class="block-info f"><span class="block-info-label">Fórmula</span>${escHtml(g.f)}</div>`:''}
+              ${g.ej?`<div class="block-info ej"><span class="block-info-label">Ejemplo</span>${escHtml(g.ej)}</div>`:''}
+              ${g.ojo?`<div class="block-info ojo"><span class="block-info-label">⚠️ Ojo</span>${escHtml(g.ojo)}</div>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = html || '<div class="alert alert-info">Sin resultados para esta búsqueda.</div>';
+
+  if (highlight !== null) {
+    setTimeout(() => {
+      const el = document.getElementById(`ge-${highlight}`);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+      ST.guideHighlight = null;
+    }, 150);
+  }
+}
+
+function abrirGuia(idx) {
+  ST.guideHighlight = idx;
+  goTo('guide', document.querySelector('[data-mod="guide"]'));
+}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  goTo('upload', document.querySelector('[data-mod="upload"]'));
+  // Pre-fill timeline con título si hay paper
+  document.getElementById('timeline-tema').value = '';
+});
+</script>
+</body>
+</html>
