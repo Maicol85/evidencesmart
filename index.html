@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- La app no carga ningún recurso externo: el único destino de red es la API de
+     Anthropic. Con eso la CSP puede ser estricta sin romper nada. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src https://api.anthropic.com; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
 <title>EvidenceSmart — CeiboMed</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -222,6 +225,14 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
     <div class="logo-sub">CeiboMed · Análisis metodológico de evidencia científica</div>
   </div>
   <div class="header-right">
+    <!-- El contexto se pega en "Cargar paper" y lo consumen Diseño, Estadística y Población.
+         Sin este chip, un contexto viejo seguía contrastando papers de otro tema y el médico
+         no tenía cómo saberlo parado en el módulo. -->
+    <div id="ctx-chip" style="display:none;align-items:center;gap:6px;background:rgba(201,168,76,.18);border:1px solid rgba(201,168,76,.45);color:#e8d9a8;padding:4px 10px;border-radius:20px;font-size:.72rem">
+      <span id="ctx-chip-txt">🧭 Contexto activo</span>
+      <button onclick="limpiarContexto()" title="Quitar el contexto de investigación" aria-label="Quitar el contexto de investigación"
+        style="background:none;border:none;color:rgba(255,255,255,.55);cursor:pointer;font-size:.85rem;padding:0 2px;line-height:1">✕</button>
+    </div>
     <div id="api-bar">
       <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off"/>
       <button onclick="conectarAPI()">Conectar</button>
@@ -259,6 +270,7 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
 
   <div class="nav-group">Avanzado</div>
   <div class="nav-item" data-mod="compare"   onclick="goTo('compare',this)"><span>⚖️</span> Comparador</div>
+  <div class="nav-item" data-mod="busqueda"  onclick="goTo('busqueda',this)"><span>🔎</span> Estrategia de búsqueda</div>
   <div class="nav-item" data-mod="timeline"  onclick="goTo('timeline',this)"><span>📅</span> Línea de tiempo</div>
   <div class="nav-item" data-mod="journal"   onclick="goTo('journal',this)"><span>🗣️</span> Journal club</div>
   <div class="nav-item" data-mod="retraction" onclick="goTo('retraction',this)"><span>🚨</span> Retractación</div>
@@ -378,6 +390,30 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
       ⚖️ Comparar Paper 1 vs Paper 2
       <div class="action-btn-sub" id="compare-sub"></div>
     </button>
+  </div>
+
+  <!-- Contexto de investigación propio del médico -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🧭</span><span class="title">Contexto de investigación</span>
+      <span class="badge">Opcional</span></div>
+    <div class="card-desc">
+      Pegá acá el resumen estadístico de tu propia serie. Si lo tenés en <strong>CeiboAnalytics</strong>,
+      salís con <em>Análisis IA → 📤 Exportar a EvidenceSmart</em> y pegás el texto tal cual.
+      Con esto los módulos dejan de analizar el paper en abstracto y lo evalúan <strong>contra tus datos</strong>:
+      si concuerda o discrepa, si tu N tiene potencia frente al del estudio, y si la población es comparable.
+    </div>
+    <textarea class="paper-text" id="contexto-inv" style="min-height:120px"
+      placeholder="CONTEXTO DE INVESTIGACIÓN — CeiboAnalytics&#10;Período analizado: ...&#10;N por aplicación: ...&#10;Asociaciones más significativas: ..."
+      oninput="onContextoChange()"></textarea>
+    <div id="contexto-status" style="font-size:.72rem;margin-top:5px;color:var(--inkMuted)"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-secondary btn-sm" onclick="limpiarContexto()">🧹 Limpiar</button>
+      <button class="btn btn-secondary btn-sm" onclick="goTo('busqueda')">🔎 Armar estrategia de búsqueda</button>
+    </div>
+    <div class="alert alert-warn" style="margin-top:10px">
+      ⚠️ El contexto se envía a Anthropic junto con el paper. Pegá <strong>estadísticos agregados</strong>,
+      nunca datos de un paciente concreto. El export de CeiboAnalytics ya sale agregado.
+    </div>
   </div>
 </div>
 
@@ -600,6 +636,29 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
 </div>
 
 <!-- TIMELINE -->
+<!-- ESTRATEGIA DE BÚSQUEDA -->
+<div id="mod-busqueda" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🔎</span><span class="title">Estrategia de búsqueda</span></div>
+    <div class="card-desc">A partir de tu contexto de investigación, arma los términos y las consultas para
+      buscar literatura relacionada en PubMed y Cochrane.</div>
+    <!-- El límite se dice acá arriba y no al pie: es la diferencia entre lo que la app hace
+         y lo que el médico podría esperar de un botón que dice "búsqueda". -->
+    <div class="alert alert-warn">
+      <strong>EvidenceSmart no busca papers.</strong> No consulta PubMed ni ninguna base: no tiene conexión
+      con ellas. Lo que genera acá son los <strong>términos y las consultas</strong> para que las corras vos.
+      No va a listarte artículos concretos: un modelo de lenguaje citando de memoria inventa referencias
+      que parecen reales, y eso en un abstract firmado es un problema serio.
+    </div>
+    <div id="busqueda-sin-ctx" class="alert alert-info" style="display:none">
+      Todavía no cargaste contexto de investigación. Andá a <strong>Cargar paper</strong> y pegá el resumen
+      estadístico —por ejemplo el que exporta CeiboAnalytics— para que la estrategia salga de tus hallazgos.
+    </div>
+    <button class="btn btn-primary" id="btn-busqueda" onclick="callIA('busqueda')" style="margin-top:12px">🔎 Armar estrategia de búsqueda</button>
+    <div id="ia-busqueda"></div>
+  </div>
+</div>
+
 <div id="mod-timeline" style="display:none">
   <div class="card">
     <div class="card-title"><span class="icon">📅</span><span class="title">Línea histórica orientativa (modelo)</span></div>
@@ -681,13 +740,21 @@ const ST = {
   creditosComp: 15,
   modActivo: 'upload',
   papers: [
-    {titulo:'',anio:'',revista:'',texto:'',pdf:'',foto:'',mime:'',modo:'pdf',cargado:false,estado:'pending',pdfNombre:'',fotoNombre:''},
-    {titulo:'',anio:'',revista:'',texto:'',pdf:'',foto:'',mime:'',modo:'pdf',cargado:false,estado:'pending',pdfNombre:'',fotoNombre:''}
+    {titulo:'',anio:'',revista:'',texto:'',pdf:'',foto:'',mime:'',modo:'pdf',cargado:false,estado:'pending',pdfNombre:'',fotoNombre:'',iaResults:{}},
+    {titulo:'',anio:'',revista:'',texto:'',pdf:'',foto:'',mime:'',modo:'pdf',cargado:false,estado:'pending',pdfNombre:'',fotoNombre:'',iaResults:{}}
   ],
   protocoloTexto:'',
+  contextoInv:'',        // resumen estadístico propio del médico (p. ej. export de CeiboAnalytics)
   avisoEnvioAceptado:false,
   paperActivo: 0,   // índice del paper en análisis
-  iaResults: {},    // {study:'...', objectives:'...', ...}
+  /* Accesor, no estado propio: los resultados viven en ST.papers[i].iaResults. Cuando
+     eran un objeto global, analizar el Paper 2 después del 1 dejaba los análisis del 1 en
+     estado, y tanto la Evaluación metodológica como el informe exportado los volcaban bajo
+     el título del Paper 2 — un .txt con cifras de dos poblaciones distintas y un solo
+     encabezado. El bug existía desde antes pero era inalcanzable: sin la cabecera de acceso
+     directo ninguna llamada completaba, así que iaResults nunca se poblaba. Arreglar la
+     cabecera lo activó. */
+  get iaResults(){ const p = this.papers[this.paperActivo]; if(!p.iaResults) p.iaResults = {}; return p.iaResults; },
   biblioteca: [],
   chartB64: '',
   chartMime: '',
@@ -710,7 +777,13 @@ async function llamarIA(messages, systemPrompt, maxTokens=1500) {
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': ST.apiKey,
-      'anthropic-version': '2023-06-01'
+      'anthropic-version': '2023-06-01',
+      /* Sin esta cabecera la API rechaza el preflight CORS y el fetch muere con
+         "Failed to fetch" ANTES de salir del navegador. Verificado contra la API real:
+         sin ella, TypeError; con ella, 401 de clave inválida — o sea, el pedido llega.
+         Los 14 módulos pasan por acá, así que faltando esto la app entera no analizaba
+         nada, y el error se leía como un problema de conexión del usuario. */
+      'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
@@ -741,6 +814,7 @@ function conectarAPI() {
 }
 function desconectarAPI() {
   ST.apiKey = '';
+  const inp = document.getElementById('apiKeyInput'); if (inp) inp.value = '';   // no dejarla en el DOM
   ST.iaActiva = false;
   document.getElementById('api-bar').style.display = 'flex';
   document.getElementById('api-active').style.display = 'none';
@@ -779,9 +853,14 @@ function goTo(mod, el) {
   if (mod === 'library') renderLibrary();
   if (mod === 'compare') renderComparePapers();
   if (mod === 'summary') syncSumUI();
+  if (mod === 'busqueda') {
+    // Sin contexto la estrategia sale genérica: se dice antes de gastar una llamada.
+    const av = document.getElementById('busqueda-sin-ctx');
+    if (av) av.style.display = ST.contextoInv ? 'none' : 'block';
+  }
 
   // Advertencia si no hay paper
-  if (!['upload','guide','library','compare','timeline'].includes(mod) && !ST.papers[ST.paperActivo].cargado) {
+  if (!['upload','guide','library','compare','timeline','busqueda'].includes(mod) && !ST.papers[ST.paperActivo].cargado) {
     mostrarNoPaperWarn(target);
   } else {
     document.querySelectorAll('.no-paper-warn').forEach(e => e.remove());
@@ -995,21 +1074,54 @@ function analizarPaper(idx) {
 // IA — CALL PRINCIPAL
 // ══════════════════════════════════════════════
 const PROMPTS = {
-  study: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nIdentificá: 1) Tipo exacto de estudio y justificá. 2) Nivel de evidencia: usar Oxford Centre for Evidence-Based Medicine (OCEBM) o descripción del diseño del estudio. GRADE solo aplica a revisiones sistemáticas/metaanálisis como cuerpo de evidencia, no a un paper individual. 3) Si el diseño es adecuado para los objetivos. 4) Tamaño muestral: ¿fue calculado? ¿es adecuado? ¿hay análisis de potencia? 5) Semáforo: 🟢 sólido / 🟡 aceptable / 🔴 débil.`,
+  study: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nIdentificá: 1) Tipo exacto de estudio y justificá. 2) Nivel de evidencia: usar Oxford Centre for Evidence-Based Medicine (OCEBM) o descripción del diseño del estudio. GRADE solo aplica a revisiones sistemáticas/metaanálisis como cuerpo de evidencia, no a un paper individual. 3) Si el diseño es adecuado para los objetivos. 4) Tamaño muestral: ¿fue calculado? ¿es adecuado? ¿hay análisis de potencia? 5) Semáforo: 🟢 sólido / 🟡 aceptable / 🔴 débil.${ctxBloque()}`,
   objectives: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nAnalizá: 1) Objetivo primario declarado. 2) Secundarios. 3) ¿Se alcanzó el primario con significancia estadística Y clínica? 4) ¿Se alcanzaron los secundarios? 5) Outcome switching: no puede evaluarse confiablemente sin comparar con el protocolo registrado (ClinicalTrials.gov, PROSPERO, WHO ICTRP) o SAP previo. Verificá si el paper cita un número de registro. Si existe: indicá el número y señalá que requiere comparación externa. Si no existe: "Registro de protocolo no reportado — outcome switching no evaluable desde el artículo aislado."${ST.protocoloTexto ? '\n\nPROTOCOLO/SAP APORTADO POR EL USUARIO (compará los outcomes reportados en el paper contra estos outcomes preespecificados):\n'+ST.protocoloTexto.substring(0,4000) : ''} 6) Semáforo: 🟢 alcanzado / 🟡 dudoso / 🔴 no alcanzado.`,
   bias: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nSesgos: 1) Selección. 2) Información/medición. 3) Confusión. 4) Seguimiento/pérdidas. 5) Publicación. 6) Riesgo de sesgo según el diseño:\n   - ECA → RoB 2 (Cochrane), dominios: D1 proceso de aleatorización; D2 desviaciones de la intervención prevista; D3 datos faltantes en el outcome; D4 medición del outcome; D5 selección del resultado reportado. Resultado por dominio y global: bajo riesgo / algunas preocupaciones / alto riesgo.\n   - Estudios observacionales → ROBINS-I.\n   - Estudios diagnósticos → QUADAS-2.\n   - Revisiones sistemáticas → AMSTAR 2 o ROBIS.\n   GRADE solo evalúa la certeza del cuerpo de evidencia en revisiones sistemáticas; NO es una escala de calidad de un paper individual. 7) Semáforo de riesgo de sesgo: 🟢 bajo / 🟡 algunas preocupaciones / 🔴 alto.`,
-  stats: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nEstadística: 1) Valores p — ¿significativos y correctamente interpretados? 2) IC 95%. 3) NNT o NNH si aplica. 4) Tamaño del efecto (HR, OR, RR) y relevancia clínica. 5) ¿El test estadístico fue correcto? 6) ¿Significancia estadística = clínica? 7) Semáforo: 🟢 / 🟡 / 🔴.`,
-  population: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nPoblación: 1) Características basales. 2) Criterios inclusión/exclusión — ¿apropiados? 3) ¿Representativa? ¿de qué contexto? 4) Generalizabilidad, especialmente a LATAM. 5) Real-world evidence comparada. 6) Semáforo: 🟢 / 🟡 / 🔴.`,
+  stats: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nEstadística: 1) Valores p — ¿significativos y correctamente interpretados? 2) IC 95%. 3) NNT o NNH si aplica. 4) Tamaño del efecto (HR, OR, RR) y relevancia clínica. 5) ¿El test estadístico fue correcto? 6) ¿Significancia estadística = clínica? 7) Semáforo: 🟢 / 🟡 / 🔴.${ctxBloque()}`,
+  population: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nPoblación: 1) Características basales. 2) Criterios inclusión/exclusión — ¿apropiados? 3) ¿Representativa? ¿de qué contexto? 4) Generalizabilidad, especialmente a LATAM. 5) Real-world evidence comparada. 6) Semáforo: 🟢 / 🟡 / 🔴.${ctxBloque()}`,
   safety: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nSeguridad: 1) EA y frecuencia. 2) SAEs. 3) Muertes relacionadas. 4) Discontinuaciones. 5) Monitorización adecuada. 6) Riesgo-beneficio. 7) Semáforo: 🟢 bien reportado / 🟡 incompleto / 🔴 deficiente.`,
   integrity: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nEvaluá los conflictos de interés (COI) reportados en el paper:\n- COI declarado: describir lo que el paper declara.\n- Rol del financiador en diseño/análisis/reporte: describir.\n- Financiamiento y afiliaciones: describir.\n- Informe selectivo de resultados: describir si se observa.\n- Información no reportada: indicar como "No reportado — no equivale a ausencia de COI".\n- Verificación externa no realizada desde este análisis.\n\nNunca clasificar como "sin conflictos" basándose solo en la ausencia de declaración visible. No asignar un semáforo de "sin conflictos" por inferencia.`,
   score: p => {
+    /* El corte a 600 se lleva la atribución: las salidas de stats/population arrancan con
+       las cifras del paper y aclaran recién al final cuáles vienen de la serie del médico.
+       Se corta en límite de línea y se rotula el bloque, porque va pegado abajo de
+       `Paper: "..."` y sin encabezado el modelo lo lee como parte del artículo.
+       Por eso mismo score ya NO recibe ctxBloque(): le llegaría el contexto dos veces, una
+       de ellas sin su etiqueta de origen. */
+    const _corta = t => { const c = t.substring(0,600); const i = c.lastIndexOf('\n');
+      return (i > 300 ? c.substring(0,i) : c) + (t.length > 600 ? '\n[…recorte]' : ''); };
     const prevs = ['study','objectives','bias','stats','population','safety','integrity']
       .filter(k => ST.iaResults[k])
-      .map(k => `=== ${k.toUpperCase()} ===\n${ST.iaResults[k].substring(0,600)}`).join('\n\n');
-    return `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${prevs || p.texto.substring(0,3000)}\n\nEvaluá el artículo en estas dimensiones:\n1. Riesgo de sesgo (bajo / algunas preocupaciones / alto) — según la herramienta apropiada al diseño\n2. Certeza de la evidencia (no aplicar GRADE a un paper individual — solo describir)\n3. Precisión (IC, tamaño muestral, potencia)\n4. Consistencia con evidencia previa\n5. Aplicabilidad a la población de interés\n6. Magnitud del beneficio/daño reportado\n7. Limitaciones principales declaradas\n\nConclusión final:\n"Evaluación metodológica — no constituye una recomendación clínica. El juicio clínico final es responsabilidad del profesional."\n\nNunca asignar un puntaje numérico ni recomendar aplicar o no aplicar un resultado.`;
+      .map(k => `=== ${k.toUpperCase()} ===\n${_corta(ST.iaResults[k])}`).join('\n\n');
+    return `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${prevs ? '=== ANÁLISIS PREVIOS DE ESTE MISMO PAPER (pueden incluir contrastes contra la serie propia del usuario; NO son datos del artículo) ===\n'+prevs+'\n=== FIN DE LOS ANÁLISIS PREVIOS ===' : p.texto.substring(0,3000)}\n\nEvaluá el artículo en estas dimensiones:\n1. Riesgo de sesgo (bajo / algunas preocupaciones / alto) — según la herramienta apropiada al diseño\n2. Certeza de la evidencia (no aplicar GRADE a un paper individual — solo describir)\n3. Precisión (IC, tamaño muestral, potencia)\n4. Consistencia con evidencia previa\n5. Aplicabilidad a la población de interés\n6. Magnitud del beneficio/daño reportado\n7. Limitaciones principales declaradas\n\nConclusión final:\n"Evaluación metodológica — no constituye una recomendación clínica. El juicio clínico final es responsabilidad del profesional."\n\nNunca asignar un puntaje numérico ni recomendar aplicar o no aplicar un resultado.`;
   },
   journal: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\n${p.texto.substring(0,5000)}\n\nJournal club: 1) 5 preguntas de comprensión. 2) 5 preguntas metodológicas profundas (diseño, sesgos, estadística). 3) 3 preguntas de aplicabilidad clínica en LATAM. 4) 2 preguntas provocadoras para debate. 5) Puntos clave que el presentador debe dominar. 6) Mensaje central en una oración.`,
   retraction: p => `Paper: "${p.titulo}" (${p.anio}, ${p.revista}).\n\nIndicá si tenés conocimiento de retractación, corrección o expresión de preocupación para este artículo HASTA tu fecha de corte de conocimiento:\n1. ¿Conocés una RETRACTACIÓN? Motivo y fecha si los conocés.\n2. ¿Conocés una CORRECCIÓN O ERRATUM?\n3. ¿Conocés ALERTAS DE INTEGRIDAD (expresión de preocupación)?\n4. ¿El autor principal tiene historial conocido de retractaciones?\n\nAclarar SIEMPRE al final:\n"Estado no verificado en tiempo real. Para verificación actual consultar:\n- PubMed → artículo → ver estado\n- Retraction Watch: retractionwatch.com\n- Crossmark: DOI del artículo"`,
+  /* Genera términos y consultas, NO papers. El modelo citando de memoria fabrica
+     referencias que parecen reales; esta app ya evita eso en el resto de sus prompts y
+     no tiene sentido abrir la puerta justo en el módulo que se llama "búsqueda". */
+  busqueda: () => {
+    const p = ST.papers[ST.paperActivo];
+    const dePaper = (p && p.cargado && p.titulo)
+      ? `\n\nHay además un paper cargado: "${p.titulo}" (${p.anio||'s/año'}${p.revista?', '+p.revista:''}). Tenelo en cuenta para no repetir lo ya cubierto y para sugerir qué falta buscar.` : '';
+    return `Actuá como bibliotecario biomédico. A partir del contexto de investigación de abajo, armá una ESTRATEGIA DE BÚSQUEDA.${dePaper}\n\n` +
+      /* Mismo delimitador y mismo truncado que ctxBloque(): armarlo por separado ya había
+         hecho que este módulo perdiera el marcador de truncado y la regla del q(FDR). */
+      (ST.contextoInv ? `=== CONTEXTO DE INVESTIGACIÓN DEL MÉDICO ===\nSon estadísticos AGREGADOS de la serie propia del usuario.\n${ctxTexto()}\n=== FIN DEL CONTEXTO DEL MÉDICO ===\n\nSi un hallazgo del contexto trae un q(FDR) que no sobrevive o una reserva de N bajo, tratalo como hipótesis al derivar la pregunta. No inventes datos que el contexto no traiga.\n\n` : 'No se aportó contexto: pedí al usuario que lo cargue y, mientras tanto, trabajá sobre el paper cargado si lo hay.\n\n') +
+      `Entregá, en este orden:\n` +
+      `1. PREGUNTA EN FORMATO PICO — derivada de los hallazgos del contexto (Población, Intervención/Exposición, Comparador, Outcome). Si algún componente no se puede derivar, decí cuál falta.\n` +
+      `2. TÉRMINOS MeSH — los descriptores para cada componente. Marcá cada uno como "MeSH candidato" o "texto libre": no tenés acceso al MeSH Browser, así que no podés afirmar que un descriptor existe. Aclarás que los candidatos se confirman en meshb.nlm.nih.gov antes de correr la consulta.\n` +
+      `3. CONSULTA PARA PUBMED — una cadena lista para pegar, con operadores booleanos, [MeSH Terms], [tiab] y paréntesis. Escribila en un bloque aparte para que se pueda copiar entera.\n` +
+      `4. CONSULTA PARA COCHRANE LIBRARY — la equivalente con la sintaxis de CENTRAL.\n` +
+      `5. FILTROS SUGERIDOS — tipo de estudio, años, idioma, y por qué cada uno.\n` +
+      `6. VARIANTES — una búsqueda más sensible (para no perder nada) y una más específica (para menos ruido), diciendo cuándo conviene cada una.\n` +
+      `7. QUÉ MIRAR AL LEER LO QUE ENCUENTRES — dados los hallazgos del contexto, qué tres cosas habría que verificar en los papers que aparezcan.\n\n` +
+      `REGLAS QUE NO PODÉS ROMPER:\n` +
+      `- NO listes artículos, autores, títulos, revistas, años ni PMID/DOI concretos. No tenés forma de verificarlos y una cita inventada en un protocolo o en un abstract es un problema serio para quien lo firma.\n` +
+      `- Si un concepto está asociado a un ensayo de referencia, mencioná el CONCEPTO (por ejemplo "inhibidores SGLT2 en IC con FEr"), nunca el acrónimo ni el nombre del ensayo. Un acrónimo inventado es fonéticamente indistinguible de uno real, encaja en el patrón de nomenclatura de trials y se cita sin ir a verificarlo, porque escribirlo no se siente como citar.\n` +
+      `- No afirmes qué va a encontrar la búsqueda ni cuántos resultados va a dar.\n` +
+      `- Aclarás al inicio que esto es una estrategia para ejecutar en PubMed/Cochrane, no una búsqueda realizada.`;
+  },
   timeline: () => {
     const tema = document.getElementById('timeline-tema')?.value || '';
     return `Generá una línea de tiempo histórica ORIENTATIVA sobre: "${tema}", basada en el conocimiento del modelo hasta su fecha de corte.\n\nIndicá EXPLÍCITAMENTE al inicio: "Esta línea de tiempo es orientativa y se basa en el conocimiento del modelo — puede omitir estudios recientes o contener imprecisiones. Verificar cada referencia por PMID/DOI antes de citarla. Para evidencia actualizada realizar búsqueda en PubMed/Cochrane/MEDLINE."\n\n1. ESTUDIOS PIONEROS\n2. EVIDENCIA INTERMEDIA\n3. TRIALS PIVOTALES\n4. ESTUDIOS CONTRADICTORIOS y cómo se resolvieron\n5. QUÉ CAMBIÓ: qué se confirmó / refutó / sigue en debate\n6. IMPLICACIÓN PARA LA PRÁCTICA EN LATAM\n\nFormato: año — estudio — hallazgo clave — impacto en la práctica\n\nNo presentar estudios como verificados si no podés proporcionar un PMID o DOI concreto.`;
@@ -1047,8 +1159,20 @@ const KEY_CONCEPTS = {
 async function callIA(mod) {
   if (!ST.iaActiva) { alert('Ingresá tu API key primero.'); return; }
 
+  /* Antes de cobrar: sin paper, PROMPTS.study(p) produce `Paper: "" (, ).` y el modelo
+     devuelve un análisis genérico plausible sobre nada, con el crédito ya gastado.
+     Lista propia y no la de goTo(): ésa incluye módulos que ni siquiera pasan por acá. */
+  const requierePaper = !['compare','timeline','busqueda'].includes(mod);
+  if (requierePaper && !ST.papers[ST.paperActivo].cargado) {
+    alert('Cargá un paper antes de analizar este módulo.'); return;
+  }
+  if (mod === 'busqueda' && !ST.contextoInv && !ST.papers[ST.paperActivo].cargado) {
+    alert('Para armar la estrategia hace falta un contexto de investigación o un paper cargado.'); return;
+  }
+
   const tipoCredito = mod === 'compare' ? 'comparador' : 'individual';
   if (!usarCredito(tipoCredito)) return;
+  let creditoConsumido = true;   // se devuelve si la llamada falla (ver catch)
 
   const p = ST.papers[ST.paperActivo];
   const iaDiv = document.getElementById(`ia-${mod}`);
@@ -1078,7 +1202,10 @@ async function callIA(mod) {
     }
 
     const resp = await llamarIA(messages, SYSTEM);
-    ST.iaResults[mod] = resp;
+    /* Desde acá los tokens ya se facturaron: devolver el crédito sería regalar uno que la
+       API sí cobró. Y el resultado se guarda DESPUÉS de renderizar bien: si algo fallaba
+       entre medio, la UI mostraba "Error" y el módulo igual salía en el informe exportado. */
+    creditoConsumido = false;
 
     iaDiv.innerHTML = `
       <div class="ia-response">
@@ -1099,11 +1226,19 @@ async function callIA(mod) {
         </div>`;
     }
 
+    ST.iaResults[mod] = resp;
+
     // Mostrar botón guardar si es summary
     if (mod === 'summary') document.getElementById('btn-save-lib').style.display = 'inline-flex';
 
   } catch(e) {
-    iaDiv.innerHTML = `<div class="alert alert-danger">⚠️ Error: ${escHtml(e.message)}</div>`;
+    /* Se devuelve el crédito: se descuenta antes de llamar, así que un error de red o de
+       clave lo consumía sin haber entregado ningún análisis. */
+    if (creditoConsumido) { if (tipoCredito === 'comparador') ST.creditosComp++; else ST.creditosInd++; actualizarCreditos(); }
+    const esRed = /failed to fetch|networkerror|load failed/i.test(e.message || '');
+    iaDiv.innerHTML = `<div class="alert alert-danger">⚠️ ${esRed
+      ? 'No se pudo contactar a la API de Anthropic. Revisá tu conexión y que la clave siga vigente.'
+      : 'Error: ' + escHtml(e.message)}</div>`;
   }
   if (btn) btn.disabled = false;
 }
@@ -1125,6 +1260,97 @@ function chequearArchivo(f, input, max, etiqueta) {
   if (!avisoEnvioExterno()) { if (input) input.value=''; return false; }
   if (f.size > max) { alert('Archivo demasiado grande. Máximo: ' + etiqueta + '.'); if (input) input.value=''; return false; }
   return true;
+}
+
+// ══════════════════════════════════════════════
+// CONTEXTO DE INVESTIGACIÓN
+// ══════════════════════════════════════════════
+const MAX_CTX = 6000;   // lo que entra sin desplazar al paper del prompt
+
+function onContextoChange() {
+  const ta = document.getElementById('contexto-inv');
+  const st = document.getElementById('contexto-status');
+  const v = (ta.value || '').trim();
+  /* El aviso de envío externo sólo se disparaba al subir ARCHIVOS: el texto pegado se iba a
+     Anthropic sin que el usuario pasara nunca por él. */
+  if (v && !ST.contextoInv && !avisoEnvioExterno()) { ta.value = ''; return; }
+  /* Se guarda COMPLETO. Truncar acá además de en ctxTexto() dejaba a ctxTexto() viendo
+     siempre un texto de largo exacto MAX_CTX, así que su marcador de truncado no se
+     agregaba nunca: el modelo recibía una lista recortada creyéndola completa. Un solo
+     lugar que corta, y el contador del status refleja lo que el médico pegó de verdad. */
+  ST.contextoInv = v;
+  if (!st) return;
+  if (!v) { st.textContent = ''; st.style.color = 'var(--inkMuted)'; return; }
+  /* Se reconoce el export de CeiboAnalytics por su encabezado. No es validación —el campo
+     acepta cualquier texto— sino confirmación de que lo pegado es lo que se cree pegado. */
+  const deCA = /CONTEXTO DE INVESTIGACIÓN\s*—\s*CeiboAnalytics/i.test(v);
+  const nAsoc = (v.match(/^\s*\d+\.\s.+—/gm) || []).length;
+  /* Heurístico de dato identificable. Avisa, no bloquea: un gate da falsos positivos con
+     nombres de fármacos y se aprende a esquivar. Lo que corrige es que el tilde verde, al
+     lado de un cartel que dice "nunca datos de un paciente", se lea como que pasó un control
+     — no pasa ninguno. Un export agregado de CeiboAnalytics no dispara ninguno de estos. */
+  const sospecha = /\b\d\.\d{3}\.\d{3}-?\d?\b/.test(v) || /\b\d{7,10}\b/.test(v) ||
+    /\b(paciente|historia cl[íi]nica|HC\s*N|nombre\s*:|apellido|c[ée]dula|documento\s*:|fecha de nacimiento)\b/i.test(v);
+  const partes = [];
+  partes.push(deCA ? '✓ Reconocido: export de CeiboAnalytics' : 'Texto libre cargado');
+  if (nAsoc) partes.push(nAsoc + (nAsoc === 1 ? ' asociación' : ' asociaciones'));
+  partes.push(v.length.toLocaleString('es') + ' caracteres');
+  if (v.length > MAX_CTX) partes.push('⚠️ se usan los primeros ' + MAX_CTX.toLocaleString('es'));
+  if (sospecha) partes.push('⚠️ parece haber un dato identificable (documento, nombre o fecha de nacimiento) — revisá antes de analizar');
+  st.textContent = partes.join(' · ');
+  st.style.color = sospecha ? 'var(--danger)' : (deCA ? 'var(--success)' : 'var(--inkMuted)');
+  syncCtxChip();
+}
+/* El chip vive en el header, así que se ve desde cualquier módulo. */
+function syncCtxChip() {
+  const chip = document.getElementById('ctx-chip'); if (!chip) return;
+  chip.style.display = ST.contextoInv ? 'flex' : 'none';
+  const t = document.getElementById('ctx-chip-txt');
+  if (t) t.textContent = '🧭 Contexto activo (' + ST.contextoInv.length.toLocaleString('es') + ' car.)';
+}
+function limpiarContexto() {
+  const ta = document.getElementById('contexto-inv'); if (ta) ta.value = '';
+  ST.contextoInv = '';
+  const st = document.getElementById('contexto-status'); if (st) st.textContent = '';
+  syncCtxChip();
+}
+
+/* Bloque que se inyecta en los prompts. Un solo lugar: si cada módulo lo armara por su
+   cuenta, unos dirían "compará contra esto" y otros no, y el médico no sabría cuáles
+   miraron sus datos. Las instrucciones de prudencia van acá y valen para todos. */
+/* Corta en salto de línea y marca el truncado. Con substring a pelo el corte caía en medio
+   de una asociación, y como el q(FDR) y la reserva van al final de cada ítem, lo primero que
+   se perdía era la salvedad: quedaba el titular sin su N. Y sin marcador el modelo recibía
+   un bloque cortado que se ve idéntico a uno completo.
+   Además se neutralizan las líneas de separador del texto pegado: si el médico pega algo que
+   ya trae "===", el resto quedaría fuera del bloque delimitado. */
+function ctxTexto() {
+  const t = ST.contextoInv.replace(/^\s*={3,}.*$/gm, '[separador removido]');
+  if (t.length <= MAX_CTX) return t;
+  const i = t.lastIndexOf('\n', MAX_CTX);
+  return (i > MAX_CTX * 0.5 ? t.substring(0, i) : t.substring(0, MAX_CTX)) +
+    '\n[CONTEXTO TRUNCADO — faltan hallazgos. No asumas que esta lista es completa.]';
+}
+function ctxBloque() {
+  if (!ST.contextoInv) return '';
+  return `\n\n=== CONTEXTO DE INVESTIGACIÓN DEL MÉDICO ===\n` +
+    `Son estadísticos AGREGADOS de la serie propia del usuario, no del paper analizado.\n` +
+    ctxTexto() +
+    `\n=== FIN DEL CONTEXTO DEL MÉDICO ===\n\n` +
+    `Al analizar, contrastá explícitamente el paper contra estos datos propios: si concuerda, ` +
+    `si discrepa, o si no son comparables (poblaciones, diseño o desenlaces distintos). ` +
+    `Reglas: no mezcles las cifras del paper con las del contexto; decí siempre de cuál venís. ` +
+    `Una serie observacional de un solo centro no refuta un ensayo aleatorizado, y una diferencia ` +
+    `entre ambos suele explicarse por diseño o por población antes que por el efecto. ` +
+    `Si el contexto trae un q(FDR) que no sobrevive o una reserva de N bajo, tratá ese hallazgo ` +
+    `como hipótesis y decilo. No inventes datos que el contexto no traiga.\n\n` +
+    /* Restricción de FORMATO y no sólo de contenido: "decí de cuál venís" se puede cumplir
+       en un párrafo y omitir en el siguiente, y ambas cosas satisfacen la instrucción. Con
+       dos secciones, quien lea el informe puede recortar la B y quedarse con algo citable. */
+    `FORMATO OBLIGATORIO de tu respuesta, en dos secciones y sin que ninguna cifra cruce:\n` +
+    `A) ANÁLISIS DEL PAPER — sólo cifras del artículo. Prohibido mencionar acá datos del contexto.\n` +
+    `B) CONTRASTE CON LA SERIE PROPIA — acá y sólo acá aparecen los datos del usuario, cada cifra con el prefijo [tu serie].\n` +
+    `Si no podés atribuir una cifra con certeza a A o a B, no la escribas.`;
 }
 
 // FIX 4: protocolo/registro para outcome switching
@@ -1373,6 +1599,16 @@ function exportarInforme() {
   lineas.push(`PAPER ANALIZADO: ${p.titulo||'Sin título'}`);
   lineas.push(`Año: ${p.anio||'N/D'} | Revista: ${p.revista||'N/D'}`);
   lineas.push('');
+  /* Si hubo contexto propio, los módulos contrastaron el paper contra OTRA población y en
+     el .txt eso queda todo bajo el mismo encabezado "PAPER ANALIZADO". Un colega que recibe
+     el archivo no tiene cómo saberlo. */
+  if (ST.contextoInv) {
+    lineas.push('⚠️ ESTE INFORME SE GENERÓ CON UN CONTEXTO DE INVESTIGACIÓN PROPIO CARGADO.');
+    lineas.push('   Los módulos Diseño, Estadística y Población contrastaron el paper contra');
+    lineas.push('   datos de OTRA población (la serie del usuario). Antes de citar cualquier');
+    lineas.push('   cifra, verificá si viene del artículo o de esa serie.');
+    lineas.push('');
+  }
 
   const modulos = {study:'🔬 DISEÑO DEL ESTUDIO',objectives:'🎯 OBJETIVOS',bias:'⚖️ SESGOS Y CALIDAD',stats:'📊 ESTADÍSTICA',population:'👥 POBLACIÓN',safety:'🛡️ SEGURIDAD',integrity:'🔍 CONFLICTOS',score:'⭐ EVALUACIÓN METODOLÓGICA',summary:'📝 RESUMEN/TRADUCCIÓN',journal:'🗣️ JOURNAL CLUB',retraction:'🚨 RETRACTACIÓN',timeline:'📅 LÍNEA DE TIEMPO',compare:'⚖️ COMPARADOR'};
 
@@ -1392,6 +1628,16 @@ function exportarInforme() {
   if (!hayAlgo) { alert('No hay análisis para exportar. Realizá algún análisis primero.'); return; }
 
   lineas.push('═'.repeat(60));
+  /* El único disclaimer que había vivía dentro del PROMPT de score, o sea que dependía de
+     que el modelo lo escribiera: si lo omitía, el informe salía sin él y nadie se enteraba.
+     Un disclaimer que emite el modelo no es un disclaimer. */
+  lineas.push('AVISO');
+  lineas.push('Análisis asistido por inteligencia artificial. Es orientativo y NO constituye');
+  lineas.push('una recomendación clínica: no reemplaza la lectura crítica completa del artículo');
+  lineas.push('ni el juicio del profesional, que es el responsable de toda decisión clínica.');
+  lineas.push('Toda cifra, cita y referencia debe verificarse contra el artículo original antes');
+  lineas.push('de usarse en un abstract, un protocolo o una decisión sobre un paciente.');
+  lineas.push('');
   lineas.push('Generado por EvidenceSmart — CeiboMed');
   lineas.push('═'.repeat(60));
 
@@ -1400,8 +1646,12 @@ function exportarInforme() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `EvidenceSmart_${(p.titulo||'informe').substring(0,30).replace(/\s+/g,'_')}.txt`;
+  /* Al DOM antes del click y revocar diferido: la descarga arranca de forma asíncrona, y
+     revocar el blob en el mismo tick puede abortarla. Falla en silencio, así que parecería
+     culpa de la CSP nueva. */
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => { try { document.body.removeChild(a); } catch(e){} URL.revokeObjectURL(url); }, 1000);
 }
 
 // ══════════════════════════════════════════════
