@@ -3,9 +3,15 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<!-- La app no carga ningún recurso externo: el único destino de red es la API de
-     Anthropic. Con eso la CSP puede ser estricta sin romper nada. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src https://api.anthropic.com; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
+<!-- La app no carga ningún recurso externo. Dos destinos de red y nada más: la API de
+     Anthropic (análisis) y E-utilities del NCBI (búsqueda real en PubMed).
+     Sobre agregar eutils a connect-src: amplía la superficie de exfiltración si alguna vez
+     hubiera un XSS acá. Se acepta porque (a) el destino es un host fijo de los NIH, no un
+     comodín, y (b) esta app NO persiste la clave de Anthropic — vive en ST.apiKey, en
+     memoria, y se pide de nuevo en cada sesión. No hay secreto en localStorage que robar,
+     que es lo que sí hace esta diferencia grave en CeiboAnalytics. Si alguna vez se
+     persiste la clave acá, hay que volver sobre esta decisión. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src https://api.anthropic.com https://eutils.ncbi.nlm.nih.gov; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
 <title>EvidenceSmart — CeiboMed</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -209,6 +215,36 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
 /* No-paper warning */
 .no-paper-warn{background:var(--warnLt);border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:12px 16px;font-size:.82rem;margin-bottom:16px;display:flex;align-items:center;gap:10px}
 
+/* ── PICO ── */
+.pico-grid{display:grid;gap:8px;margin-top:12px}
+.pico-row{display:grid;grid-template-columns:118px 1fr;gap:10px;align-items:start;background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--accentMid);border-radius:0 8px 8px 0;padding:9px 12px}
+.pico-key{font-weight:700;font-size:.74rem;color:var(--accent);letter-spacing:.3px}
+.pico-key small{display:block;font-weight:400;font-size:.63rem;color:var(--inkMuted);letter-spacing:0;margin-top:1px}
+.pico-val{font-size:.82rem;color:var(--inkSoft);line-height:1.55}
+.pico-val.falta{color:var(--warn);font-style:italic}
+
+/* ── PubMed ── */
+.pm-hit{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+.pm-hit-title{font-size:.88rem;font-weight:600;color:var(--ink);line-height:1.45;margin-bottom:5px}
+.pm-hit-meta{font-size:.73rem;color:var(--inkMuted);line-height:1.5;margin-bottom:7px}
+.pm-hit-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px}
+.pm-abs{font-size:.79rem;color:var(--inkSoft);line-height:1.65;background:var(--bg);border-radius:7px;padding:10px 12px;margin-top:8px;white-space:pre-wrap}
+.pm-abs-lab{font-weight:700;color:var(--accent);font-size:.7rem;letter-spacing:.4px}
+.pm-flag{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 9px;border-radius:10px;margin-right:5px}
+.pm-flag.retr{background:var(--dangerLt);color:var(--danger)}
+.pm-flag.eoc{background:var(--warnLt);color:var(--warn)}
+.pm-flag.err{background:var(--warnLt);color:var(--warn)}
+.pm-flag.tipo{background:var(--accentLt);color:var(--accent);font-weight:600}
+.pm-translation{font-family:ui-monospace,Menlo,monospace;font-size:.75rem;background:#f5f7f9;border-radius:6px;padding:8px 11px;color:var(--accent);word-break:break-word;line-height:1.55}
+
+/* ── Matriz de coincidencia ── */
+.mx-tabla{width:100%;border-collapse:collapse;margin-top:12px;font-size:.8rem}
+.mx-tabla th{background:var(--ink);color:#fff;padding:8px 10px;text-align:left;font-size:.72rem;font-weight:700;letter-spacing:.3px}
+.mx-tabla td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top;line-height:1.55;color:var(--inkSoft)}
+.mx-tabla tr:nth-child(even) td{background:#fafbfc}
+.mx-sem{text-align:center;font-size:1.1rem;white-space:nowrap}
+.mx-cita{display:block;margin-top:5px;font-size:.72rem;color:var(--inkMuted);border-left:2px solid var(--border);padding-left:7px;font-style:italic}
+
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -271,6 +307,8 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
   <div class="nav-group">Avanzado</div>
   <div class="nav-item" data-mod="compare"   onclick="goTo('compare',this)"><span>⚖️</span> Comparador</div>
   <div class="nav-item" data-mod="busqueda"  onclick="goTo('busqueda',this)"><span>🔎</span> Estrategia de búsqueda</div>
+  <div class="nav-item" data-mod="pubmed"    onclick="goTo('pubmed',this)"><span>🔍</span> Buscar en PubMed</div>
+  <div class="nav-item" data-mod="matriz"    onclick="goTo('matriz',this)"><span>📊</span> Comparar con literatura</div>
   <div class="nav-item" data-mod="timeline"  onclick="goTo('timeline',this)"><span>📅</span> Línea de tiempo</div>
   <div class="nav-item" data-mod="journal"   onclick="goTo('journal',this)"><span>🗣️</span> Journal club</div>
   <div class="nav-item" data-mod="retraction" onclick="goTo('retraction',this)"><span>🚨</span> Retractación</div>
@@ -644,18 +682,87 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
       buscar literatura relacionada en PubMed y Cochrane.</div>
     <!-- El límite se dice acá arriba y no al pie: es la diferencia entre lo que la app hace
          y lo que el médico podría esperar de un botón que dice "búsqueda". -->
+    <!-- Este aviso decía "EvidenceSmart no busca papers. No consulta PubMed ni ninguna base".
+         Dejarlo sería una afirmación que el código ya no sostiene. Pero la razón por la que
+         estaba —un modelo citando de memoria fabrica referencias— sigue valiendo ENTERA para
+         el texto que genera este módulo. Lo que cambió es que ahora hay una segunda pantalla
+         que trae resultados REALES del NCBI. Se distingue una cosa de la otra en vez de
+         borrar la advertencia. -->
     <div class="alert alert-warn">
-      <strong>EvidenceSmart no busca papers.</strong> No consulta PubMed ni ninguna base: no tiene conexión
-      con ellas. Lo que genera acá son los <strong>términos y las consultas</strong> para que las corras vos.
-      No va a listarte artículos concretos: un modelo de lenguaje citando de memoria inventa referencias
-      que parecen reales, y eso en un abstract firmado es un problema serio.
+      <strong>Esto genera la consulta, no los resultados.</strong> Lo que sale acá son
+      <strong>términos y cadenas de búsqueda</strong>. La IA no lista artículos concretos y no debe hacerlo:
+      citando de memoria inventa referencias que parecen reales, y eso en un abstract firmado es un
+      problema serio. Para traer artículos de verdad pasá la consulta a
+      <strong>🔍 Buscar en PubMed</strong>, que consulta la base del NCBI y devuelve PMID verificables.
     </div>
     <div id="busqueda-sin-ctx" class="alert alert-info" style="display:none">
       Todavía no cargaste contexto de investigación. Andá a <strong>Cargar paper</strong> y pegá el resumen
       estadístico —por ejemplo el que exporta CeiboAnalytics— para que la estrategia salga de tus hallazgos.
     </div>
     <button class="btn btn-primary" id="btn-busqueda" onclick="callIA('busqueda')" style="margin-top:12px">🔎 Armar estrategia de búsqueda</button>
+    <div id="pico-ficha"></div>
     <div id="ia-busqueda"></div>
+  </div>
+</div>
+
+<!-- BUSCAR EN PUBMED -->
+<div id="mod-pubmed" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">🔍</span><span class="title">Buscar en PubMed</span>
+      <span class="badge verde">Sin IA</span></div>
+    <div class="card-desc">Consulta real a la base del NCBI (E-utilities). No pasa por ningún modelo de
+      lenguaje: lo que aparece acá viene de PubMed y cada resultado trae su PMID.</div>
+
+    <div class="alert alert-info">
+      <strong>Resultados reales de PubMed — verificá cada paper antes de citarlo.</strong>
+      El PMID y el enlace llevan al registro original. Que un artículo aparezca en esta lista no dice
+      nada sobre su calidad: leelo antes de usarlo.
+    </div>
+    <!-- No requiere la API key: es una base pública. Se dice, porque el resto de la app no
+         hace nada sin clave y el médico asumiría que este módulo tampoco. -->
+    <div class="alert alert-success" style="margin-top:8px">
+      No necesita API key ni gasta créditos. PubMed es una base pública de los NIH.
+    </div>
+
+    <div style="font-size:.75rem;font-weight:600;color:var(--inkSoft);margin:14px 0 6px">Consulta</div>
+    <textarea class="paper-text" id="pm-query" style="min-height:88px;font-family:ui-monospace,Menlo,monospace;font-size:.78rem"
+      placeholder='Ej: ("heart failure"[MeSH Terms]) AND (sglt2[tiab] OR dapagliflozin[tiab]) AND randomized[pt]'></textarea>
+    <div id="pm-desde-estrategia" style="display:none;margin-top:6px"></div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <button class="btn btn-primary" id="btn-pubmed" onclick="buscarPubMed()">🔍 Buscar en PubMed</button>
+      <select id="pm-retmax" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);font-family:inherit;font-size:.82rem">
+        <option value="10" selected>10 resultados</option>
+        <option value="20">20 resultados</option>
+        <option value="50">50 resultados</option>
+      </select>
+      <select id="pm-sort" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);font-family:inherit;font-size:.82rem">
+        <option value="relevance" selected>Por relevancia</option>
+        <option value="pub_date">Más recientes primero</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="abrirEnPubMed()">↗ Abrir la consulta en PubMed</button>
+    </div>
+    <div id="pm-resultado"></div>
+  </div>
+</div>
+
+<!-- COMPARAR CON LITERATURA -->
+<div id="mod-matriz" style="display:none">
+  <div class="card">
+    <div class="card-title"><span class="icon">📊</span><span class="title">Comparar con literatura</span></div>
+    <div class="card-desc">Matriz de coincidencia entre los hallazgos de tu serie y lo que dice el paper cargado.</div>
+
+    <div class="alert alert-warn">
+      <strong>Una serie observacional no confirma ni refuta un ensayo.</strong> Esta matriz alinea dos
+      cosas para poder mirarlas juntas; no las pone al mismo nivel de evidencia. Un 🟢 significa que
+      apuntan en la misma dirección, <strong>no</strong> que tu hallazgo quede validado por el paper.
+      Cada fila trae la frase textual del artículo en la que se apoya: si no la trae, no la uses.
+    </div>
+
+    <div id="matriz-faltan" class="alert alert-info" style="display:none"></div>
+    <button class="btn btn-primary" id="btn-matriz" onclick="callIA('matriz')" style="margin-top:12px">📊 Generar matriz de coincidencia</button>
+    <div id="mx-tabla"></div>
+    <div id="ia-matriz"></div>
   </div>
 </div>
 
@@ -765,7 +872,9 @@ const ST = {
   compPdfB64: '',
   compPdfNombre: '',
   guideNivel: 'all',
-  guideHighlight: null
+  guideHighlight: null,
+  pubmedUltima: null,
+  pico: null           // último PICO parseado de la estrategia de búsqueda
 };
 
 // ══════════════════════════════════════════════
@@ -858,9 +967,12 @@ function goTo(mod, el) {
     const av = document.getElementById('busqueda-sin-ctx');
     if (av) av.style.display = ST.contextoInv ? 'none' : 'block';
   }
+  if (mod === 'pubmed') pmSyncDesdeEstrategia();
+  if (mod === 'matriz') matrizSyncEstado();
 
-  // Advertencia si no hay paper
-  if (!['upload','guide','library','compare','timeline','busqueda'].includes(mod) && !ST.papers[ST.paperActivo].cargado) {
+  /* 'pubmed' sale de la lista: es una base pública y no analiza el paper, así que el cartel
+     "no hay paper cargado" ahí sería falso. 'matriz' NO sale: necesita el paper de verdad. */
+  if (!['upload','guide','library','compare','timeline','busqueda','pubmed'].includes(mod) && !ST.papers[ST.paperActivo].cargado) {
     mostrarNoPaperWarn(target);
   } else {
     document.querySelectorAll('.no-paper-warn').forEach(e => e.remove());
@@ -1065,8 +1177,32 @@ function actualizarActionButtons() {
   }
 }
 
+/* Los divs `ia-<mod>`, `#mx-tabla` y `#pico-ficha` son nodos únicos: al cambiar de paper
+   activo quedaban en pantalla los análisis del anterior, sin ninguna etiqueta que dijera de
+   qué artículo eran, bajo una descripción que habla de "el paper cargado". Y `copiarMatriz`
+   leía el estado del paper NUEVO, así que el botón no copiaba nada y no decía nada.
+   Se vacía todo lo que el paper activo no tenga en su propio iaResults. */
+function limpiarPanelesIA() {
+  const res = ST.papers[ST.paperActivo].iaResults || {};
+  document.querySelectorAll('[id^="ia-"]').forEach(d => {
+    const mod = d.id.slice(3);
+    if (!res[mod]) d.innerHTML = '';
+  });
+  document.querySelectorAll('[id^="kc-"]').forEach(d => {
+    const mod = d.id.slice(3);
+    if (!res[mod]) d.innerHTML = '';
+  });
+  const mx = document.getElementById('mx-tabla');
+  if (mx && !res['matriz']) mx.innerHTML = '';
+  const pf = document.getElementById('pico-ficha');
+  if (pf && !res['busqueda']) { pf.innerHTML = ''; ST.pico = null; }
+  if (res['matriz']) renderMatriz(res['matriz']);
+  if (res['busqueda']) renderPICO(res['busqueda']);
+}
+
 function analizarPaper(idx) {
   ST.paperActivo = idx;
+  limpiarPanelesIA();
   goTo('study', document.querySelector('[data-mod="study"]'));
 }
 
@@ -1109,9 +1245,23 @@ const PROMPTS = {
          hecho que este módulo perdiera el marcador de truncado y la regla del q(FDR). */
       (ST.contextoInv ? `=== CONTEXTO DE INVESTIGACIÓN DEL MÉDICO ===\nSon estadísticos AGREGADOS de la serie propia del usuario.\n${ctxTexto()}\n=== FIN DEL CONTEXTO DEL MÉDICO ===\n\nSi un hallazgo del contexto trae un q(FDR) que no sobrevive o una reserva de N bajo, tratalo como hipótesis al derivar la pregunta. No inventes datos que el contexto no traiga.\n\n` : 'No se aportó contexto: pedí al usuario que lo cargue y, mientras tanto, trabajá sobre el paper cargado si lo hay.\n\n') +
       `Entregá, en este orden:\n` +
-      `1. PREGUNTA EN FORMATO PICO — derivada de los hallazgos del contexto (Población, Intervención/Exposición, Comparador, Outcome). Si algún componente no se puede derivar, decí cuál falta.\n` +
+      /* Bloque delimitado para poder mostrarlo como ficha estructurada y como texto copiable.
+         El formato se pide explícito porque parsear prosa libre falla en silencio: si el
+         modelo cambia el fraseo, la ficha queda vacía y nadie se entera. Con delimitador,
+         o está o no está, y si no está no se dibuja nada. */
+      `1. PREGUNTA EN FORMATO PICO — derivada de los hallazgos del contexto. Escribila EXACTAMENTE con este formato, en líneas separadas y sin negritas ni viñetas:\n` +
+      `<<<PICO\n` +
+      `P: [población]\n` +
+      `I: [intervención o exposición]\n` +
+      `C: [comparador]\n` +
+      `O: [outcome]\n` +
+      `PICO>>>\n` +
+      `Si un componente no se puede derivar del contexto, escribí en su línea exactamente: NO DERIVABLE — [qué dato haría falta]. No lo inventes ni lo dejes vacío.\n` +
       `2. TÉRMINOS MeSH — los descriptores para cada componente. Marcá cada uno como "MeSH candidato" o "texto libre": no tenés acceso al MeSH Browser, así que no podés afirmar que un descriptor existe. Aclarás que los candidatos se confirman en meshb.nlm.nih.gov antes de correr la consulta.\n` +
-      `3. CONSULTA PARA PUBMED — una cadena lista para pegar, con operadores booleanos, [MeSH Terms], [tiab] y paréntesis. Escribila en un bloque aparte para que se pueda copiar entera.\n` +
+      `3. CONSULTA PARA PUBMED — una cadena lista para pegar, con operadores booleanos, [MeSH Terms], [tiab] y paréntesis. Delimitala EXACTAMENTE así, con la consulta sola en el medio y sin comillas envolventes ni saltos de línea internos:\n` +
+      `<<<QUERY\n` +
+      `(la consulta)\n` +
+      `QUERY>>>\n` +
       `4. CONSULTA PARA COCHRANE LIBRARY — la equivalente con la sintaxis de CENTRAL.\n` +
       `5. FILTROS SUGERIDOS — tipo de estudio, años, idioma, y por qué cada uno.\n` +
       `6. VARIANTES — una búsqueda más sensible (para no perder nada) y una más específica (para menos ruido), diciendo cuándo conviene cada una.\n` +
@@ -1121,6 +1271,40 @@ const PROMPTS = {
       `- Si un concepto está asociado a un ensayo de referencia, mencioná el CONCEPTO (por ejemplo "inhibidores SGLT2 en IC con FEr"), nunca el acrónimo ni el nombre del ensayo. Un acrónimo inventado es fonéticamente indistinguible de uno real, encaja en el patrón de nomenclatura de trials y se cita sin ir a verificarlo, porque escribirlo no se siente como citar.\n` +
       `- No afirmes qué va a encontrar la búsqueda ni cuántos resultados va a dar.\n` +
       `- Aclarás al inicio que esto es una estrategia para ejecutar en PubMed/Cochrane, no una búsqueda realizada.`;
+  },
+  /* Matriz de coincidencia. El riesgo de este módulo no es que falle: es que salga una tabla
+     prolija llena de 🟢 que alguien pegue en una discusión. Por eso el formato obliga a
+     CITAR TEXTUALMENTE la frase del paper que sostiene cada fila, y existe un cuarto estado
+     ⚪ para cuando el artículo simplemente no aborda el hallazgo — sin él, todo hallazgo
+     termina forzado dentro de concuerda/parcial/discrepa. */
+  matriz: p => {
+    return `Tenés dos fuentes: la serie propia del médico (estadísticos AGREGADOS) y un artículo científico. ` +
+      `Armá una MATRIZ DE COINCIDENCIA que alinee cada hallazgo de la serie con lo que dice el artículo.\n\n` +
+      `=== CONTEXTO DE INVESTIGACIÓN DEL MÉDICO (su serie) ===\n${ctxTexto()}\n=== FIN DEL CONTEXTO DEL MÉDICO ===\n\n` +
+      /* El corte se MARCA. ctxTexto() ya lo hacía para el contexto; acá faltaba, y la regla
+         de más abajo dice "si no está en el texto del artículo, no existe para esta matriz":
+         sin marcador, el modelo afirmaba "El artículo no lo aborda" sobre secciones que
+         nunca vio. Es la misma clase de error que el 🟢 de más, pero al revés. */
+      `=== ARTÍCULO ===\nPaper: "${p.titulo}" (${p.anio}, ${p.revista}).\n${
+        p.texto.length > 6000
+          ? p.texto.substring(0,6000) + '\n[ARTÍCULO TRUNCADO — no concluyas "no lo aborda" por ausencia: puede estar más adelante. Decí que no podés verificarlo.]'
+          : p.texto
+      }\n=== FIN DEL ARTÍCULO ===\n\n` +
+      `FORMATO DE SALIDA — una línea por hallazgo, exactamente con este formato y sin nada más en la línea:\n` +
+      `FILA | [hallazgo de la serie, con su cifra tal como figura en el contexto] | [lo que dice el artículo] | [🟢 o 🟡 o 🔴 o ⚪] | [frase TEXTUAL del artículo que sostiene la columna anterior, entre comillas] | [una oración explicando la coincidencia o la discrepancia]\n\n` +
+      `Poné todas las filas seguidas, sin viñetas ni numeración. Después de las filas podés agregar un párrafo de lectura general.\n\n` +
+      `SEMÁFORO:\n` +
+      `🟢 Concuerda — apuntan en la misma dirección y el orden de magnitud es compatible.\n` +
+      `🟡 Parcial — la dirección coincide pero difieren la magnitud, la población o el desenlace medido.\n` +
+      `🔴 Discrepa — apuntan en direcciones opuestas.\n` +
+      `⚪ No comparable — el artículo NO aborda ese hallazgo, o mide un desenlace distinto, o la población no es comparable.\n\n` +
+      `REGLAS QUE NO PODÉS ROMPER:\n` +
+      `- La columna del artículo se apoya SIEMPRE en una frase textual del texto de arriba. Si no podés citarla, la fila va ⚪ y en la columna de cita escribí: El artículo no lo aborda.\n` +
+      `- NUNCA completes con conocimiento tuyo sobre el tema: si no está en el texto del artículo aportado, no existe para esta matriz.\n` +
+      `- El hallazgo de la serie se transcribe como está en el contexto, con su N y su q(FDR) si los trae. No lo reformules como más fuerte de lo que dice.\n` +
+      `- Si un hallazgo de la serie viene con un q(FDR) que no sobrevive o con reserva de N bajo, agregalo en la primera columna: es parte del hallazgo.\n` +
+      `- Un 🟢 significa que apuntan en la misma dirección, NO que la serie quede validada. Una serie observacional de un centro no confirma ni refuta un ensayo.\n` +
+      `- No inventes hallazgos que el contexto no traiga, ni agregues filas de relleno.`;
   },
   timeline: () => {
     const tema = document.getElementById('timeline-tema')?.value || '';
@@ -1169,6 +1353,12 @@ async function callIA(mod) {
   if (mod === 'busqueda' && !ST.contextoInv && !ST.papers[ST.paperActivo].cargado) {
     alert('Para armar la estrategia hace falta un contexto de investigación o un paper cargado.'); return;
   }
+  /* La matriz necesita las DOS fuentes. Sin contexto no hay columna izquierda y el modelo
+     la inventaría a partir del propio paper: saldría una tabla comparando el artículo
+     consigo mismo, toda en 🟢. */
+  if (mod === 'matriz' && !ST.contextoInv) {
+    alert('La matriz compara TU serie contra el paper. Cargá primero el contexto de investigación en «Cargar paper».'); return;
+  }
 
   const tipoCredito = mod === 'compare' ? 'comparador' : 'individual';
   if (!usarCredito(tipoCredito)) return;
@@ -1191,7 +1381,7 @@ async function callIA(mod) {
         {type:'image', source:{type:'base64', media_type:ST.chartMime||'image/jpeg', data:ST.chartB64}},
         {type:'text', text:`Analizá esta gráfica del paper "${p.titulo}": 1) Tipo de gráfico. 2) Ejes y variables. 3) Hallazgos principales descritos objetivamente. 4) Significancia estadística: verificá si la figura reporta EXPLÍCITAMENTE valores p, IC 95% o el resultado de una prueba estadística. Si los reporta, describí lo reportado. Si no los reporta, indicá "Significancia estadística no evaluable por inspección visual — verificar en el texto/tablas del artículo". Nunca inferir significancia estadística solo por la separación visual de curvas, barras o puntos. 5) Interpretación en el contexto del paper. 6) Aspectos metodológicos destacables.`}
       ]}];
-    } else if (p.pdf && ['study','objectives','bias','stats','population','safety','integrity','score','journal','retraction','summary'].includes(mod)) {
+    } else if (p.pdf && ['study','objectives','bias','stats','population','safety','integrity','score','journal','retraction','summary','matriz'].includes(mod)) {
       messages = [{role:'user', content:[
         {type:'document', source:{type:'base64', media_type:'application/pdf', data:p.pdf}},
         {type:'text', text: typeof PROMPTS[mod] === 'function' ? PROMPTS[mod](p) : ''}
@@ -1210,7 +1400,7 @@ async function callIA(mod) {
     iaDiv.innerHTML = `
       <div class="ia-response">
         <div class="ia-response-label">✦ EvidenceSmart AI</div>
-        <div class="ia-response-text">${escHtml(resp)}</div>
+        <div class="ia-response-text">${escHtml(limpiarMarcadores(resp))}</div>
       </div>`;
 
     // Conceptos clave
@@ -1226,7 +1416,21 @@ async function callIA(mod) {
         </div>`;
     }
 
-    ST.iaResults[mod] = resp;
+    /* Sobre el objeto CAPTURADO al inicio y no sobre ST.iaResults, que re-resuelve el paper
+       activo: si el médico cambiaba de paper mientras la llamada estaba en vuelo, el prompt
+       había usado el Paper 1 y la respuesta se guardaba —y se exportaba— bajo el Paper 2. */
+    if (!p.iaResults) p.iaResults = {};
+    p.iaResults[mod] = resp;
+    if (ST.papers[ST.paperActivo] !== p) {
+      iaDiv.innerHTML = '<div class="alert alert-warn">Este análisis se hizo sobre <strong>' +
+        escHtml(p.titulo || 'el paper anterior') + '</strong>, que ya no es el paper activo. ' +
+        'Quedó guardado con ese paper; volvé a él para verlo.</div>';
+      if (btn) btn.disabled = false;
+      return;
+    }
+
+    if (mod === 'busqueda') renderPICO(resp);
+    if (mod === 'matriz') renderMatriz(resp);
 
     // Mostrar botón guardar si es summary
     if (mod === 'summary') document.getElementById('btn-save-lib').style.display = 'inline-flex';
@@ -1241,6 +1445,683 @@ async function callIA(mod) {
       : 'Error: ' + escHtml(e.message)}</div>`;
   }
   if (btn) btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════
+// MATRIZ DE COINCIDENCIA
+// ══════════════════════════════════════════════
+const MX_SEM = {
+  '🟢': ['Concuerda', 'Apuntan en la misma dirección. NO significa que el paper valide tu serie.'],
+  '🟡': ['Parcial',   'Misma dirección, pero difieren magnitud, población o desenlace.'],
+  '🔴': ['Discrepa',  'Apuntan en direcciones opuestas.'],
+  '⚪': ['No comparable', 'El artículo no aborda este hallazgo o mide otra cosa.']
+};
+
+function matrizSyncEstado() {
+  const host = document.getElementById('matriz-faltan');
+  const btn = document.getElementById('btn-matriz');
+  if (!host) return;
+  const faltan = [];
+  if (!ST.contextoInv) faltan.push('el <strong>contexto de investigación</strong> (los hallazgos de tu serie)');
+  if (!ST.papers[ST.paperActivo].cargado) faltan.push('un <strong>paper cargado</strong>');
+  if (!faltan.length) { host.style.display = 'none'; if (btn) btn.disabled = false; return; }
+  host.style.display = 'block';
+  host.innerHTML = 'La matriz cruza dos fuentes y todavía falta ' + faltan.join(' y ') +
+    '. <button class="btn btn-secondary btn-sm" style="margin-left:8px" onclick="goTo(\'upload\')">→ Ir a Cargar paper</button>';
+  if (btn) btn.disabled = true;
+}
+
+/* Parsea las filas `FILA | a | b | sem | cita | nota`. Si no hay ninguna, NO se dibuja tabla:
+   queda el texto crudo, que es honesto. Una tabla vacía o a medio armar se lee como
+   "no hay coincidencias", que es una conclusión y no un fallo de formato. */
+/* Devuelve {filas, emitidas, descartadas}. El conteo importa tanto como las filas: antes
+   se descartaba en silencio y una tabla de 7 filas sobre 8 emitidas se veía completa. */
+function parseMatriz(txt) {
+  const filas = [];
+  /* Se acepta "FILA 3 |" además de "FILA |": el modelo numera con frecuencia, y con el
+     ancla estricta se perdían TODAS las filas de golpe — la tabla no se dibujaba y el texto
+     crudo de abajo, lleno de líneas "FILA 1 | ...", se leía como si fuera el resultado. */
+  const esFila = l => /^\s*FILA\s*\d*\s*[|:]/.test(l);
+  const lineas = String(txt || '').split('\n');
+  const emitidas = lineas.filter(esFila).length;
+  lineas.forEach(linea => {
+    if (!esFila(linea)) return;
+    const partes = linea.replace(/^\s*FILA\s*\d*\s*[|:]/, '').split('|').map(x => x.trim());
+    if (partes.length < 3) return;
+
+    /* El semáforo se busca POR POSICIÓN EN EL TEXTO, no por orden del array. Con
+       Array.find el iterador recorre ['🟢','🟡','🔴','⚪'], así que a la celda
+       "🔴 discrepa, no es 🟢" le asignaba 🟢: una fila que el modelo marcó como DISCREPA
+       salía rotulada "Concuerda", con su tooltip, y sumaba al contador de verdes del aviso.
+       El sesgo del error apuntaba siempre al estado más favorable, que es la peor
+       dirección posible para esta tabla. Y si hay más de un emoji, no se elige ninguno:
+       adivinar cuál quiso decir es inventar la conclusión de la fila. */
+    const semCrudo = partes[2] || '';
+    const hallados = ['🟢','🟡','🔴','⚪'].map(e => [e, semCrudo.indexOf(e)]).filter(x => x[1] >= 0);
+    const sem = hallados.length === 1 ? hallados[0][0] : null;
+
+    /* Sin semáforo reconocible en su columna, lo más probable NO es que el modelo se haya
+       olvidado: es que un `|` dentro de una celda corrió todo un lugar. Verificado con
+       "HR 2,1 | IC95% 1,3-3,4; N=88": el IC y el N de la SERIE DEL MÉDICO terminaban bajo
+       el encabezado "Lo que dice el artículo", y el emoji del semáforo se imprimía entre
+       comillas como si fuera la frase textual del artículo. Esa fila se descarta y se
+       cuenta, en vez de dibujarse mal. */
+    if (!sem && hallados.length === 0) return;
+
+    /* Todo lo que sobre después de la quinta columna vuelve a la nota, en vez de perderse
+       por leer sólo índices fijos. */
+    filas.push({
+      serie: partes[0] || '', paper: partes[1] || '', sem,
+      cita: partes[3] || '', nota: partes.slice(4).join(' | ').trim()
+    });
+  });
+  return { filas, emitidas, descartadas: emitidas - filas.length };
+}
+
+function renderMatriz(txt) {
+  const host = document.getElementById('mx-tabla');
+  if (!host) return;
+  const R = parseMatriz(txt);
+  const filas = R.filas;
+  if (!filas.length) {
+    /* Cero filas parseables NO es cero coincidencias. Si el modelo emitió filas y ninguna
+       se pudo leer, hay que decirlo: si no, abajo queda el texto crudo —una tabla markdown,
+       o una lista de "FILA 1 | ..."— que se lee como el resultado terminado, sin ninguno de
+       los avisos que viven dentro del bloque que no se dibujó. */
+    host.innerHTML = R.emitidas
+      ? '<div class="alert alert-danger" style="margin-top:12px"><strong>No se pudo armar la tabla.</strong> ' +
+        'El modelo devolvió ' + R.emitidas + ' fila' + (R.emitidas === 1 ? '' : 's') + ' pero ninguna en el formato esperado, ' +
+        'así que no se muestran como matriz. Leé el texto de abajo tal cual y volvé a generarla.</div>'
+      : '<div class="alert alert-warn" style="margin-top:12px"><strong>El modelo no devolvió la matriz en el formato pedido.</strong> ' +
+        'Abajo está su respuesta completa: leela como texto, no como tabla. Podés volver a generarla.</div>';
+    return;
+  }
+
+  const cuerpo = filas.map(f => {
+    /* Sin semáforo reconocible se muestra "—" y no se elige uno por defecto: cualquier
+       default acá es inventar la conclusión de la fila. */
+    const sem = f.sem;
+    const tit = sem ? MX_SEM[sem][0] + ' — ' + MX_SEM[sem][1] : 'El modelo no devolvió un semáforo para esta fila';
+    /* Una fila ⚪ o sin cita no puede parecer respaldada: se dice en la celda. */
+    const citaLimpia = f.cita.replace(/^["“»]+|["”«]+$/g, '').trim();
+    const noAborda = /no lo aborda|no aborda/i.test(citaLimpia);
+    const sinCita = !citaLimpia || /sin cita|n\/a/i.test(citaLimpia);
+    /* La cita se coteja contra el texto que se le mandó al modelo. Es el único ancla
+       probatoria de la tabla y hasta acá sólo se comprobaba que la celda no estuviera
+       vacía: una prosa del propio modelo se renderizaba entre comillas angulares con
+       formato de cita. Se compara un fragmento normalizado; si no aparece, se dice. */
+    const _norm = t => String(t || '').toLowerCase().replace(/[\s\u00a0]+/g, ' ')
+      .replace(/[“”«»"'’]/g, '').trim();
+    const fuente = _norm((ST.papers[ST.paperActivo] || {}).texto);
+    const aguja = _norm(citaLimpia).slice(0, 45);
+    const verificable = fuente.length > 100 && aguja.length >= 25;
+    const citaEnTexto = verificable ? fuente.indexOf(aguja) >= 0 : null;
+    return '<tr>' +
+      '<td>' + escHtml(f.serie) + '</td>' +
+      '<td>' + escHtml(f.paper) +
+        (noAborda
+          ? '<span class="mx-cita" style="font-style:normal">El artículo no lo aborda</span>'
+          : sinCita
+            ? '<span class="mx-cita" style="color:var(--warn);font-style:normal">⚠️ Sin frase textual del artículo que lo sostenga</span>'
+            : '<span class="mx-cita">«' + escHtml(citaLimpia) + '»' +
+              (citaEnTexto === false
+                ? '<br><span style="color:var(--danger);font-style:normal">⚠️ Esta frase NO aparece en el texto que cargaste — verificala contra el artículo original</span>'
+                : citaEnTexto === null && verificable === false
+                  ? '<br><span style="color:var(--inkMuted);font-style:normal">(no verificable contra el texto cargado)</span>'
+                  : '') + '</span>') +
+      '</td>' +
+      '<td class="mx-sem" title="' + escHtml(tit) + '">' + (sem || '—') +
+        '<div style="font-size:.62rem;color:var(--inkMuted);font-weight:600;margin-top:2px">' +
+          escHtml(sem ? MX_SEM[sem][0] : 'sin dato') + '</div>' +
+      '</td>' +
+      '<td style="font-size:.76rem">' + escHtml(f.nota) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const nVerde = filas.filter(f => f.sem === '🟢').length;
+  /* Se separan las dos causas de "sin cita": la fila ⚪ que dice "el artículo no lo aborda"
+     es la respuesta CORRECTA, no un defecto. Metiendo las dos en el mismo contador, el aviso
+     saltaba en toda matriz (casi siempre hay dos o tres ⚪) y se volvía ruido — que es cómo
+     mueren las advertencias que sí importan. */
+  const _sinCita = f => { const c = f.cita.replace(/^["“»]+|["”«]+$/g, '').trim();
+    return !c || /sin cita|n\/a/i.test(c); };
+  const _noAborda = f => /no lo aborda|no aborda/i.test(f.cita);
+  const nSinRespaldo = filas.filter(f => _sinCita(f) && !_noAborda(f) && f.sem !== '⚪').length;
+  const ctxCortado = ST.contextoInv && ST.contextoInv.length > MAX_CTX;
+  const soloAbstract = (ST.papers[ST.paperActivo] || {}).fuente === 'pubmed-abstract';
+
+  host.innerHTML =
+    '<div style="overflow-x:auto;margin-top:14px">' +
+      '<table class="mx-tabla"><thead><tr>' +
+        '<th style="width:30%">Hallazgo de tu serie</th>' +
+        '<th style="width:34%">Lo que dice el artículo</th>' +
+        '<th style="width:11%;text-align:center">Coincidencia</th>' +
+        '<th style="width:25%">Lectura</th>' +
+      '</tr></thead><tbody>' + cuerpo + '</tbody></table>' +
+    '</div>' +
+    (R.descartadas ? '<div class="alert alert-danger" style="margin-top:10px"><strong>⚠️ ' + R.descartadas +
+      ' de las ' + R.emitidas + ' filas que devolvió el modelo no se pudieron leer</strong> y no están en la tabla. ' +
+      'Suele pasar cuando una celda trae un «|» adentro, que corre las columnas. ' +
+      'La tabla de arriba está <strong>incompleta</strong>: mirá el texto completo abajo o volvé a generarla.</div>' : '') +
+    '<div class="alert alert-warn" style="margin-top:10px">' +
+      '<strong>Cómo NO leer esta tabla.</strong> ' + (nVerde ? nVerde + ' fila' + (nVerde === 1 ? '' : 's') + ' en 🟢 ' + (nVerde === 1 ? 'significa que ese hallazgo tuyo' : 'significan que esos hallazgos tuyos') + ' y el artículo apuntan en la misma dirección — ' : '') +
+      'la concordancia con un solo artículo no es replicación ni validación externa: es un artículo. ' +
+      'Para eso hace falta una búsqueda sistemática, no el paper que tenías a mano.' +
+      (nSinRespaldo ? '<br>⚠️ <strong>' + nSinRespaldo + ' fila' + (nSinRespaldo === 1 ? '' : 's') + ' sin frase textual del artículo</strong> — ' +
+        (nSinRespaldo === 1 ? 'esa fila no está respaldada' : 'esas filas no están respaldadas') + ' por el texto que cargaste. Verificalas contra el artículo original antes de usarlas.' : '') +
+      /* El truncado se avisaba sólo al modelo (ctxTexto) y en el status de "Cargar paper".
+         Una matriz de 6 filas sobre una serie de 20 asociaciones se lee como cobertura
+         completa si nadie dice que la lista entró recortada. */
+      (ctxCortado ? '<br>⚠️ <strong>Tu contexto se recortó a los primeros ' + MAX_CTX.toLocaleString('es') + ' caracteres</strong> — ' +
+        'hay hallazgos de tu serie que esta matriz no miró. No la leas como cobertura completa.' : '') +
+      (soloAbstract ? '<br>⚠️ <strong>El paper cargado es sólo el abstract de PubMed</strong>, no el texto completo. ' +
+        'Un «el artículo no lo aborda» acá puede significar «no está en el abstract».' : '') +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+      '<button class="btn btn-secondary btn-sm" onclick="copiarMatriz()">📋 Copiar la tabla</button>' +
+    '</div>' +
+    '<div id="mx-copiado" style="font-size:.72rem;color:var(--success);margin-top:6px"></div>';
+}
+
+async function copiarMatriz() {
+  const R = parseMatriz(ST.iaResults['matriz'] || '');
+  const filas = R.filas;
+  if (!filas.length) return;
+  /* Lo copiado lleva las mismas marcas que la pantalla. Una celda de cita vacía pegada en
+     un Word no se lee como "esto no está respaldado": se lee como un dato que falta. */
+  const _sc = f => { const c = f.cita.replace(/^["“»]+|["”«]+$/g, '').trim();
+    return (!c || /sin cita|n\/a/i.test(c)) && !/no lo aborda|no aborda/i.test(f.cita) && f.sem !== '⚪'; };
+  const nSR = filas.filter(_sc).length;
+  const t = ['MATRIZ DE COINCIDENCIA — EvidenceSmart',
+    'Hallazgo de la serie\tArtículo\tCoincidencia\tCita textual\tLectura']
+    .concat(filas.map(f => [f.serie, f.paper, (f.sem || '—') + ' ' + (f.sem ? MX_SEM[f.sem][0] : 'sin semáforo'),
+      _sc(f) ? '⚠️ SIN CITA' : f.cita, f.nota].join('\t')))
+    .concat(['',
+      'La coincidencia con un artículo no es replicación ni validación externa. Verificar contra el artículo original.',
+      ...(nSR ? ['⚠️ ' + nSR + ' fila(s) sin frase textual del artículo que las sostenga.'] : []),
+      ...(R.descartadas ? ['⚠️ ' + R.descartadas + ' de ' + R.emitidas + ' filas no se pudieron leer y NO están en esta tabla.'] : []),
+      ...(ST.contextoInv && ST.contextoInv.length > MAX_CTX ? ['⚠️ El contexto se recortó: hay hallazgos de la serie que la matriz no miró.'] : []),
+      ...((ST.papers[ST.paperActivo] || {}).fuente === 'pubmed-abstract' ? ['⚠️ El análisis se hizo sobre el ABSTRACT, no sobre el texto completo.'] : [])
+    ])
+    .join('\n');
+  const av = document.getElementById('mx-copiado');
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(t);
+    else {
+      const ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy'); document.body.removeChild(ta);
+      if (!ok) throw new Error('sin permiso');
+    }
+    if (av) { av.style.color = 'var(--success)'; av.textContent = '✅ Tabla copiada (con la advertencia al pie).'; setTimeout(() => { av.textContent = ''; }, 4000); }
+  } catch (e) {
+    if (av) { av.style.color = 'var(--warn)'; av.textContent = '⚠️ El navegador no dejó copiar. Seleccioná la tabla a mano.'; }
+  }
+}
+
+// ══════════════════════════════════════════════
+// PICO — ficha estructurada a partir de la estrategia
+// ══════════════════════════════════════════════
+const PICO_ETIQ = {
+  P: ['Población',   'a quién'],
+  I: ['Intervención / Exposición', 'qué se hace o a qué se expone'],
+  C: ['Comparador',  'contra qué'],
+  O: ['Outcome',     'qué se mide']
+};
+
+/* Parsea el bloque <<<PICO ... PICO>>>. Devuelve null si NO está: preferible no dibujar
+   ficha a dibujar una con casilleros vacíos, que se lee como "no hay comparador" cuando en
+   realidad es que el parseo falló. */
+function parsePICO(txt) {
+  const m = String(txt || '').match(/<<<PICO\s*([\s\S]*?)PICO>>>/);
+  if (!m) return null;
+  const out = {};
+  /* Se toleran las decoraciones que el modelo pone igual aunque el prompt las prohíba:
+     negrita (**P:**), viñetas (- P:, • P:) y raya en vez de dos puntos (P – adultos).
+     Cada una de esas tres variantes devolvía cadena vacía, y renderPICO la pintaba como
+     "⚠️ No derivable del contexto" — que es una CONCLUSIÓN sobre los datos del médico, no
+     un fallo de formato, y las dos se veían idénticas.
+     También se admite la primera clave pegada al delimitador (<<<PICO P: ...). */
+  /* La negrita se saca ANTES que las viñetas: al revés, el strip de viñeta se comía el
+     primer asterisco de `**P:**` y dejaba `*P:` , que ya no matchea. */
+  const cuerpo = m[1].replace(/\*\*/g, '').replace(/^[ \t]*[-*•·]\s*/gm, '');
+  ['P','I','C','O'].forEach(k => {
+    const re = new RegExp('(?:^|\\n)\\s*' + k + '(?:\\s*/\\s*[A-ZÉ])?\\s*[:\\-–—]\\s*(.+)', 'i');
+    const v = cuerpo.match(re);
+    out[k] = v ? v[1].trim() : '';
+  });
+  return Object.values(out).some(Boolean) ? out : null;
+}
+
+function picoTexto(pico) {
+  return ['P','I','C','O'].map(k => PICO_ETIQ[k][0] + ': ' + (pico[k] || '(el modelo no devolvió esta línea)')).join('\n');
+}
+
+function renderPICO(txt) {
+  const host = document.getElementById('pico-ficha');
+  if (!host) return;
+  const pico = parsePICO(txt);
+  ST.pico = pico;
+  if (!pico) { host.innerHTML = ''; return; }
+  /* Tres estados y no dos: el modelo dijo que no se puede derivar / el modelo lo derivó /
+     la línea no se pudo leer. El tercero es un problema de la app, no de los datos del
+     médico, y decirle "no derivable del contexto" sería echarle la culpa a su serie. */
+  const filas = ['P','I','C','O'].map(k => {
+    const v = pico[k] || '';
+    const noDeriv = /^NO DERIVABLE/i.test(v);
+    const noLeido = !v;
+    return '<div class="pico-row">' +
+      '<div class="pico-key">' + k + ' — ' + PICO_ETIQ[k][0] + '<small>' + PICO_ETIQ[k][1] + '</small></div>' +
+      '<div class="pico-val' + (noDeriv || noLeido ? ' falta' : '') + '">' +
+        (noLeido ? '⚠️ El modelo no devolvió esta línea en el formato esperado — mirá el texto completo abajo'
+         : escHtml(v.replace(/^NO DERIVABLE\s*—?\s*/i, '⚠️ No derivable del contexto — '))) +
+      '</div></div>';
+  }).join('');
+  host.innerHTML =
+    '<div style="margin-top:16px">' +
+      '<div style="font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--inkMuted);margin-bottom:2px">Pregunta estructurada</div>' +
+      '<div class="pico-grid">' + filas + '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
+        '<button class="btn btn-secondary btn-sm" onclick="copiarPICO()">📋 Copiar PICO</button>' +
+        '<button class="btn btn-secondary btn-sm" onclick="picoAPubMed()">🔍 Llevar la consulta a PubMed</button>' +
+      '</div>' +
+      '<div id="pico-copiado" style="font-size:.72rem;color:var(--success);margin-top:6px"></div>' +
+    '</div>';
+}
+
+async function copiarPICO() {
+  if (!ST.pico) return;
+  const t = 'PREGUNTA PICO\n' + picoTexto(ST.pico) +
+    '\n\n— Derivada por IA a partir del contexto de investigación cargado en EvidenceSmart.' +
+    '\n  Verificá que P, I, C y O correspondan a tus datos antes de usarla en un protocolo.' +
+    (ST.contextoInv && ST.contextoInv.length > MAX_CTX
+      ? '\n  ⚠️ El contexto se recortó a los primeros ' + MAX_CTX.toLocaleString('es') + ' caracteres.' : '');
+  const av = document.getElementById('pico-copiado');
+  /* navigator.clipboard sólo existe en contexto seguro. En file:// —que es como se abre una
+     app de una sola página cuando alguien la baja— no está, y sin respaldo el botón no haría
+     nada sin decir nada. */
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(t); }
+    else {
+      const ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (!ok) throw new Error('sin permiso');
+    }
+    if (av) { av.style.color = 'var(--success)'; av.textContent = '✅ PICO copiado — pegalo en ThesiSmart o donde lo necesites.'; setTimeout(() => { av.textContent = ''; }, 4000); }
+  } catch (e) {
+    if (av) { av.style.color = 'var(--warn)'; av.textContent = '⚠️ El navegador no dejó copiar. Seleccioná el texto de la ficha a mano.'; }
+  }
+}
+
+/* Saca la consulta del bloque <<<QUERY del último texto de estrategia. */
+function queryDeEstrategia() {
+  const t = ST.iaResults['busqueda'] || '';
+  const m = t.match(/<<<QUERY\s*([\s\S]*?)QUERY>>>/);
+  if (!m) return '';
+  return m[1].trim().replace(/^`+|`+$/g, '').trim();
+}
+
+function picoAPubMed() {
+  goTo('pubmed', document.querySelector('[data-mod="pubmed"]'));
+}
+
+/* Ofrece la consulta de la estrategia, pero NO pisa lo que el médico haya escrito: se
+   propone con un botón. Sobrescribir en silencio un campo editable es de las formas más
+   fáciles de perder trabajo sin dejar rastro. */
+function pmSyncDesdeEstrategia() {
+  const host = document.getElementById('pm-desde-estrategia');
+  const ta = document.getElementById('pm-query');
+  if (!host || !ta) return;
+  const q = queryDeEstrategia();
+  if (!q) { host.style.display = 'none'; host.innerHTML = ''; return; }
+  if (!ta.value.trim()) { ta.value = q; host.style.display = 'none'; host.innerHTML = ''; return; }
+  if (ta.value.trim() === q) { host.style.display = 'none'; host.innerHTML = ''; return; }
+  host.style.display = 'block';
+  host.innerHTML = '<div class="alert alert-info" style="margin-top:0">Hay una consulta generada en ' +
+    '<strong>Estrategia de búsqueda</strong> distinta de la que tenés escrita. ' +
+    '<button class="btn btn-secondary btn-sm" style="margin-left:6px" onclick="pmUsarEstrategia()">Usar la de la estrategia</button></div>';
+}
+function pmUsarEstrategia() {
+  const q = queryDeEstrategia(); if (!q) return;
+  document.getElementById('pm-query').value = q;
+  pmSyncDesdeEstrategia();
+}
+
+// ══════════════════════════════════════════════
+// PUBMED — E-utilities del NCBI
+// Búsqueda REAL. No pasa por ningún modelo: lo que se muestra viene de la base.
+// ══════════════════════════════════════════════
+const PM_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+/* NCBI pide identificar la herramienta. NO se manda `email`: es un dato personal que la app
+   no tiene por qué enviar a un tercero, y el parámetro es opcional. */
+const PM_TOOL = 'tool=EvidenceSmart';
+/* Sin API key, E-utilities admite 3 peticiones por segundo. Una búsqueda son tres llamadas
+   encadenadas, así que dos búsquedas seguidas pueden pasarse. El botón se bloquea durante
+   la búsqueda y además se espacia el arranque. */
+let _pmUltima = 0;
+const _pmEsperar = ms => new Promise(r => setTimeout(r, ms));
+
+/* Cola de una sola vía. El espaciado anterior leía y escribía _pmUltima con un await en el
+   medio: dos llamadas concurrentes —dos clics en "Cargar como Paper 1", que deshabilitan
+   sólo su propio botón— calculaban la misma espera y despertaban juntas. Encadenando sobre
+   una promesa, el turno de cada una se reserva antes de dormir. */
+let _pmCola = Promise.resolve();
+function _pmTurno() {
+  const mio = _pmCola.then(() => {
+    const espera = 350 - (Date.now() - _pmUltima);
+    return espera > 0 ? _pmEsperar(espera) : null;
+  }).then(() => { _pmUltima = Date.now(); });
+  _pmCola = mio.catch(() => {});
+  return mio;
+}
+
+async function _pmFetch(endpoint, params) {
+  await _pmTurno();
+  /* Sin timeout, una conexión aceptada y nunca respondida deja el spinner y el botón
+     bloqueados para siempre, y la única salida es recargar — que en esta app cuesta la
+     sesión entera. */
+  const ctrl = new AbortController();
+  const reloj = setTimeout(() => ctrl.abort(), 20000);
+  let res;
+  try {
+    res = await fetch(PM_BASE + endpoint + '?' + PM_TOOL + '&' + params, {signal: ctrl.signal});
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('PubMed no respondió en 20 segundos. Probá de nuevo en un momento.');
+    throw e;
+  } finally { clearTimeout(reloj); }
+  if (!res.ok) throw new Error('PubMed respondió ' + res.status + ' ' + res.statusText);
+  return res;
+}
+
+/* Sólo dígitos. El PMID viene de la respuesta del NCBI, pero se arma una URL y un href con
+   él: validar antes de concatenar cuesta una línea y no depende de confiar en la fuente. */
+const _pmid = v => /^\d+$/.test(String(v)) ? String(v) : null;
+
+function _pmURL(pmid) { return 'https://pubmed.ncbi.nlm.nih.gov/' + pmid + '/'; }
+
+function abrirEnPubMed() {
+  const q = (document.getElementById('pm-query').value || '').trim();
+  if (!q) { alert('Escribí o pegá una consulta primero.'); return; }
+  window.open('https://pubmed.ncbi.nlm.nih.gov/?term=' + encodeURIComponent(q), '_blank', 'noopener,noreferrer');
+}
+
+/* Los abstracts de PubMed vienen partidos en secciones etiquetadas (BACKGROUND, METHODS,
+   RESULTS, CONCLUSIONS). Quedarse con el primer <AbstractText> —que es lo que sale de hacer
+   querySelector— muestra el BACKGROUND como si fuera el abstract entero: el lector se lleva
+   el planteo del problema y ninguno de los resultados. Se concatenan TODAS con su etiqueta. */
+function _pmAbstract(articulo) {
+  const bloques = [...articulo.querySelectorAll('Abstract > AbstractText')];
+  if (!bloques.length) return '';
+  return bloques.map(b => {
+    const lab = b.getAttribute('Label');
+    /* textContent aplana el marcado inline de MEDLINE, y en un abstract clínico eso puede
+       cambiar un número por otro: 10<sup>9</sup>/L se lee "109/L". Se marcan los exponentes
+       y subíndices sobre un CLON, para no tocar el documento del que después se leen otros
+       campos. */
+    const clon = b.cloneNode(true);
+    clon.querySelectorAll('sup').forEach(n => n.replaceWith('^' + (n.textContent || '')));
+    clon.querySelectorAll('sub').forEach(n => n.replaceWith('_' + (n.textContent || '')));
+    const txt = (clon.textContent || '').trim();
+    return lab ? lab.toUpperCase() + '\n' + txt : txt;
+  }).filter(Boolean).join('\n\n');
+}
+
+function _pmAutores(lista) {
+  const nombres = (lista || []).map(a => a && a.name).filter(Boolean);
+  if (!nombres.length) return 'Autores no disponibles';
+  return nombres.length > 6 ? nombres.slice(0, 6).join(', ') + ', et al.' : nombres.join(', ');
+}
+
+async function buscarPubMed() {
+  const q = (document.getElementById('pm-query').value || '').trim();
+  const host = document.getElementById('pm-resultado');
+  if (!q) { host.innerHTML = '<div class="alert alert-warn">Escribí o pegá una consulta antes de buscar.</div>'; return; }
+
+  const btn = document.getElementById('btn-pubmed');
+  btn.disabled = true;
+  host.innerHTML = '<div class="ia-loading"><div class="ia-spinner"></div> Consultando PubMed...</div>';
+
+  try {
+    const retmax = parseInt(document.getElementById('pm-retmax').value, 10) || 10;
+    const sort = document.getElementById('pm-sort').value === 'pub_date' ? '&sort=pub_date' : '';
+
+    // ── 1. esearch: qué PMID matchean ──
+    const rs = await _pmFetch('esearch.fcgi',
+      'db=pubmed&retmode=json&retmax=' + retmax + sort + '&term=' + encodeURIComponent(q));
+    const er = (await rs.json()).esearchresult;
+    if (!er) throw new Error('PubMed devolvió una respuesta que no se pudo interpretar.');
+    /* E-utilities devuelve HTTP 200 con {"esearchresult":{"ERROR":"..."}} cuando su backend
+       falla o no puede parsear la consulta. Verificado: una consulta malformada devuelve
+       200 con "Search Backend failed... Empty Term in the request". Sin este chequeo,
+       count e idlist no existen, total queda en 0 y la app mostraba la pantalla de CERO
+       RESULTADOS — o sea, le decía al médico "no significa que no exista literatura sobre
+       el tema: casi siempre es la consulta" cuando la consulta nunca llegó a correr. Es la
+       afirmación exactamente contraria a lo que pasó, y el disparador más probable no es
+       una consulta rara sino un hipo del servidor del NCBI. */
+    if (er.ERROR) throw new Error('PubMed rechazó la consulta: ' + er.ERROR);
+    if (er.count == null) throw new Error('PubMed no devolvió un recuento de resultados. No se puede afirmar que la búsqueda haya corrido.');
+
+    const total = parseInt(er.count, 10) || 0;
+    const ids = (er.idlist || []).map(_pmid).filter(Boolean);
+
+    /* Lo que PubMed BUSCÓ DE VERDAD, que no siempre es lo que se le pidió. Si un término no
+       existe, PubMed lo descarta y corre el resto sin fallar: verificado con
+       `cardiacwobbliness[MeSH] OR "heart failure"[tiab]` → devuelve 273.138 resultados de
+       `"heart failure"[Title/Abstract]` a secas. Sin mostrar esto, el médico ve un número
+       enorme y cree que su consulta corrió. El módulo de estrategia dice que los MeSH son
+       "candidatos a confirmar": acá está la confirmación, y hay que enseñarla. */
+    const traduccion = er.querytranslation || '';
+    const noEncontrados = []
+      .concat((er.errorlist && er.errorlist.phrasesnotfound) || [])
+      .concat((er.warninglist && er.warninglist.quotedphrasesnotfound) || [])
+      .concat((er.warninglist && er.warninglist.phrasesignored) || []);
+    const camposMal = (er.errorlist && er.errorlist.fieldsnotfound) || [];
+
+    let aviso = '';
+    if (noEncontrados.length || camposMal.length) {
+      aviso = '<div class="alert alert-warn"><strong>⚠️ PubMed no reconoció parte de tu consulta y la ' +
+        'descartó</strong> — los resultados de abajo salen de una búsqueda MÁS AMPLIA que la que pediste.' +
+        (noEncontrados.length ? '<br>Términos ignorados: ' + noEncontrados.map(t => '<code>' + escHtml(t) + '</code>').join(', ') : '') +
+        (camposMal.length ? '<br>Campos inexistentes: ' + camposMal.map(t => '<code>' + escHtml(t) + '</code>').join(', ') : '') +
+        '<br>Confirmá los descriptores en <strong>meshb.nlm.nih.gov</strong> y volvé a correrla.</div>';
+    }
+
+    const cabecera =
+      '<div style="margin-top:14px">' +
+        '<div style="font-size:.86rem;font-weight:700;color:var(--ink)">' +
+          (total === 0 ? 'Sin resultados' : total.toLocaleString('es') + ' artículo' + (total === 1 ? '' : 's') + ' encontrado' + (total === 1 ? '' : 's')) +
+          (total > ids.length ? ' <span style="font-weight:400;color:var(--inkMuted)">— se muestran los ' + ids.length +
+            ' primeros ' + (sort ? 'por fecha de publicación' : 'por relevancia') + '</span>' : '') +
+        '</div>' +
+        (traduccion ? '<div style="margin-top:8px"><div style="font-size:.68rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--inkMuted);margin-bottom:4px">Lo que PubMed buscó realmente</div><div class="pm-translation">' + escHtml(traduccion) + '</div></div>' : '') +
+      '</div>' + aviso;
+
+    if (!ids.length) {
+      host.innerHTML = cabecera +
+        '<div class="alert alert-warn" style="margin-top:12px"><strong>La búsqueda no devolvió ningún artículo.</strong>' +
+        '<br>No significa que no exista literatura sobre el tema: casi siempre es la consulta. Probá:' +
+        '<br>• sacar filtros (años, tipo de estudio, idioma);' +
+        '<br>• cambiar algún <code>[MeSH Terms]</code> por <code>[tiab]</code>, que busca en título y resumen;' +
+        '<br>• aflojar los <code>AND</code> más restrictivos o sumar sinónimos con <code>OR</code>;' +
+        '<br>• confirmar cada descriptor en <strong>meshb.nlm.nih.gov</strong>.</div>';
+      btn.disabled = false; return;
+    }
+
+    // ── 2. esummary: metadatos ──
+    const rsum = await _pmFetch('esummary.fcgi', 'db=pubmed&retmode=json&id=' + ids.join(','));
+    const sum = (await rsum.json()).result || {};
+
+    // ── 3. efetch: abstracts (esummary no los trae) ──
+    let porPmid = {};
+    let abstractsFallaron = false;
+    try {
+      const rf = await _pmFetch('efetch.fcgi', 'db=pubmed&retmode=xml&rettype=abstract&id=' + ids.join(','));
+      const xml = new DOMParser().parseFromString(await rf.text(), 'text/xml');
+      if (xml.querySelector('parsererror')) throw new Error('XML ilegible');
+      /* También PubmedBookArticle: los capítulos de Bookshelf (StatPearls, GeneReviews)
+         vienen bajo ese elemento y con el PMID en BookDocument, no en MedlineCitation.
+         Verificado con StatPearls (PMID 32491476): el selector viejo los descartaba enteros
+         y la tarjeta decía "Este registro no tiene abstract en PubMed" sobre un capítulo
+         que sí lo tiene. StatPearls aparece constantemente en consultas clínicas amplias. */
+      xml.querySelectorAll('PubmedArticle, PubmedBookArticle').forEach(art => {
+        const id = _pmid((art.querySelector('MedlineCitation > PMID, BookDocument > PMID') || {}).textContent);
+        if (!id) return;
+        const refs = [...art.querySelectorAll('CommentsCorrections')].map(c => c.getAttribute('RefType'));
+        porPmid[id] = { abstract: _pmAbstract(art), refs };
+      });
+    } catch (e) {
+      /* Se sigue mostrando la lista sin abstracts y se DICE. Antes que una tarjeta sin
+         abstract que se lea como "este artículo no tiene resumen". */
+      console.warn('[PubMed] no se pudieron traer los abstracts:', e);
+      abstractsFallaron = true;
+    }
+
+    const tarjetas = ids.map((id, i) => {
+      const r = sum[id] || {};
+      const sinMeta = !(id in sum);   // esummary no devolvió este registro
+      const extra = porPmid[id] || {};
+      const tipos = r.pubtype || [];
+      const refs = extra.refs || [];
+      const retractado = tipos.indexOf('Retracted Publication') >= 0 || refs.indexOf('RetractionIn') >= 0;
+      const eoc = refs.indexOf('ExpressionOfConcernIn') >= 0;
+      const erratum = refs.indexOf('ErratumIn') >= 0;
+
+      /* La retractación se marca desde el dato de PubMed, no desde la memoria del modelo:
+         el módulo "Estado de publicación" avisa que su respuesta puede estar desactualizada,
+         y acá el dato es el de la base. Un artículo retractado listado sin marca es lo peor
+         que puede devolver un buscador de literatura médica. */
+      const banderas =
+        (retractado ? '<span class="pm-flag retr">🚨 RETRACTADO</span>' : '') +
+        (eoc ? '<span class="pm-flag eoc">⚠️ Expresión de preocupación</span>' : '') +
+        (erratum ? '<span class="pm-flag err">✎ Tiene fe de erratas</span>' : '') +
+        (tipos.indexOf('Randomized Controlled Trial') >= 0 ? '<span class="pm-flag tipo">ECA</span>' : '') +
+        (tipos.indexOf('Meta-Analysis') >= 0 ? '<span class="pm-flag tipo">Metaanálisis</span>' : '') +
+        (tipos.indexOf('Systematic Review') >= 0 ? '<span class="pm-flag tipo">Revisión sistemática</span>' : '');
+
+      const anio = (r.pubdate || '').match(/\d{4}/);
+      /* elocationid no siempre es un DOI: también trae `pii: S0140-6736(...)` o un número
+         de artículo, y el replace lo dejaba pasar rotulado "DOI". Quien lo copia a una
+         bibliografía se lleva un identificador que no resuelve. articleids sí lo tipa. */
+      const doi = ((r.articleids || []).find(a => a && a.idtype === 'doi') || {}).value || '';
+      const abs = extra.abstract || '';
+
+      return '<div class="pm-hit"' + (retractado ? ' style="border-color:var(--danger);border-width:2px"' : '') + '>' +
+        (banderas ? '<div style="margin-bottom:6px">' + banderas + '</div>' : '') +
+        '<div class="pm-hit-title">' + escHtml(r.title || (sinMeta ? '(metadatos no disponibles)' : '(sin título)')) + '</div>' +
+        '<div class="pm-hit-meta">' +
+          (sinMeta
+            ? '⚠️ PubMed no devolvió los datos de este registro. PMID ' + escHtml(id) + ' — abrilo para verlos.'
+            : escHtml(_pmAutores(r.authors)) + '<br>' +
+              escHtml(r.fulljournalname || r.source || 'Revista no disponible') +
+              (anio ? ' · ' + escHtml(anio[0]) : '') +
+              ' · PMID ' + escHtml(id) + (doi ? ' · DOI ' + escHtml(doi) : '')) +
+        '</div>' +
+        (abs
+          ? '<details><summary style="cursor:pointer;font-size:.78rem;color:var(--accentMid);font-weight:600">Ver abstract</summary><div class="pm-abs">' + escHtml(abs) + '</div></details>'
+          : '<div style="font-size:.75rem;color:var(--inkMuted);font-style:italic">' +
+            /* Tres estados distintos, no dos. Afirmar "no tiene abstract" sobre un registro
+               que la app no llegó a leer es una conclusión, no un dato. */
+            (abstractsFallaron ? 'Abstract no descargado (falló la consulta) — abrilo en PubMed.'
+              : (id in porPmid ? 'Este registro no tiene abstract en PubMed.'
+                               : 'No se pudo leer el resumen de este registro — abrilo en PubMed.')) + '</div>') +
+        '<div class="pm-hit-actions">' +
+          '<a class="btn btn-secondary btn-sm" href="' + _pmURL(id) + '" target="_blank" rel="noopener noreferrer">↗ Ver en PubMed</a>' +
+          '<button class="btn btn-secondary btn-sm" onclick="pmAPaper(\'' + id + '\',this)">📄 Cargar como Paper 1</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    const nRetr = ids.filter(id => {
+      const t = (sum[id] || {}).pubtype || [];
+      return t.indexOf('Retracted Publication') >= 0 || ((porPmid[id] || {}).refs || []).indexOf('RetractionIn') >= 0;
+    }).length;
+
+    host.innerHTML = cabecera +
+      (nRetr ? '<div class="alert alert-danger" style="margin-top:10px"><strong>🚨 ' + nRetr +
+        (nRetr === 1 ? ' de los artículos listados está retractado' : ' de los artículos listados están retractados') +
+        '.</strong> Están marcados. Un artículo retractado no se cita como evidencia.</div>' : '') +
+      (abstractsFallaron ? '<div class="alert alert-warn" style="margin-top:10px"><strong>No se pudieron descargar los abstracts</strong> (la lista y los PMID sí son válidos). ' +
+        'Con eso también se perdió la verificación de <strong>erratas y expresiones de preocupación</strong>, que sólo viajan en esa consulta: ' +
+        'la ausencia de banderas acá abajo NO significa que estos artículos no tengan ninguna. Abrí cada uno en PubMed.</div>' : '') +
+      '<div style="margin-top:14px">' + tarjetas + '</div>' +
+      '<div class="alert alert-info" style="margin-top:6px">Datos de PubMed (NCBI/NLM) obtenidos por E-utilities. ' +
+        'Que un artículo aparezca acá no dice nada sobre su calidad ni sobre su aplicabilidad a tu paciente.</div>';
+
+    ST.pubmedUltima = { query: q, traduccion, total, ids };
+
+  } catch (e) {
+    const esRed = /failed to fetch|networkerror|load failed/i.test(e.message || '');
+    host.innerHTML = '<div class="alert alert-danger">⚠️ ' + (esRed
+      ? 'No se pudo contactar a PubMed. Revisá tu conexión — E-utilities del NCBI puede estar temporalmente caído o limitando peticiones.'
+      : escHtml(e.message)) + '</div>';
+  }
+  btn.disabled = false;
+}
+
+/* Trae el artículo al slot de Paper 1 para analizarlo con los módulos existentes. Se carga
+   título/año/revista y el ABSTRACT, que es lo único que PubMed entrega: se dice, porque los
+   módulos de sesgos y estadística sobre un abstract solo rinden mucho menos que sobre el
+   texto completo y el médico tiene que saber sobre qué se está analizando. */
+/* El botón llega por parámetro y no por `event.target`: la función es async, y después del
+   primer await `window.event` ya no es el de este click. */
+async function pmAPaper(pmid, btn) {
+  const id = _pmid(pmid); if (!id) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+  try {
+    const rsum = await _pmFetch('esummary.fcgi', 'db=pubmed&retmode=json&id=' + id);
+    const r = ((await rsum.json()).result || {})[id] || {};
+    const rf = await _pmFetch('efetch.fcgi', 'db=pubmed&retmode=xml&rettype=abstract&id=' + id);
+    const xml = new DOMParser().parseFromString(await rf.text(), 'text/xml');
+    const art = xml.querySelector('PubmedArticle');
+    const abs = art ? _pmAbstract(art) : '';
+    if (!abs) { alert('Este registro no tiene abstract en PubMed, así que no hay texto para analizar.\n\nAbrilo en PubMed y pegá el texto a mano en «Cargar paper».'); return; }
+
+    /* Pisar el slot 1 borra sus iaResults, y ahí vive TAMBIÉN la estrategia de búsqueda
+       —callIA la guarda en el paper activo—, que es justo lo que alimenta a este módulo.
+       Peor que el borrado: los divs `ia-<mod>` quedan en el DOM, así que el médico sigue
+       VIENDO en pantalla análisis que ya no existen en el estado y que el informe exportado
+       ya no incluye. Se pregunta, nombrando lo que se pierde. */
+    const previo = ST.papers[0];
+    const nAnalisis = Object.keys(previo.iaResults || {}).length;
+    if (previo.cargado || nAnalisis) {
+      const detalle = [];
+      if (previo.titulo) detalle.push('«' + previo.titulo.substring(0, 60) + '»');
+      if (nAnalisis) detalle.push(nAnalisis + (nAnalisis === 1 ? ' análisis ya hecho' : ' análisis ya hechos'));
+      if (previo.pdf) detalle.push('el PDF cargado');
+      if (!confirm('El Paper 1 ya tiene contenido y se va a reemplazar.\n\nSe pierde: ' + detalle.join(' · ') +
+        '\n\n¿Reemplazarlo igual?')) return;
+    }
+    const anio = (r.pubdate || '').match(/\d{4}/);
+    ST.papers[0] = Object.assign({}, ST.papers[0], {
+      titulo: r.title || '', anio: anio ? anio[0] : '', revista: r.fulljournalname || r.source || '',
+      texto: 'FUENTE: abstract de PubMed (PMID ' + id + '). El texto completo del artículo NO está incluido.\n\n' + abs,
+      pdf: '', foto: '', mime: '', pdfNombre: '', fotoNombre: '',
+      cargado: true, estado: 'procesado', iaResults: {}, fuente: 'pubmed-abstract'
+    });
+    const cambioFoco = ST.paperActivo !== 0;
+    ST.paperActivo = 0;
+    /* Los paneles de la sesión anterior quedan en pantalla si no se limpian: ver el mismo
+       problema resuelto para la matriz y el PICO en limpiarPanelesIA(). */
+    limpiarPanelesIA();
+    renderSlotCargado(0);
+    actualizarActionButtons();
+    alert('✅ Cargado como Paper 1.' + (cambioFoco ? ' El análisis pasó del Paper 2 al Paper 1.' : '') +
+      '\n\nOJO: sólo el ABSTRACT, no el texto completo. Los módulos de sesgos, estadística y población van a estar mirando un resumen — alcanza para un primer tamizaje, no para una lectura crítica.');
+  } catch (e) {
+    alert('No se pudo traer el artículo: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📄 Cargar como Paper 1'; }
+}
+
+/* Los <<<PICO>>> y <<<QUERY>>> son marcadores para parsear, no para leer. Se sacan de lo
+   que se MUESTRA y de lo que se EXPORTA; ST.iaResults guarda el texto crudo, que es de
+   donde parsean renderPICO y queryDeEstrategia. */
+function limpiarMarcadores(t) {
+  return String(t || '').replace(/^\s*<<<(?:PICO|QUERY)\s*$/gm, '').replace(/^\s*(?:PICO|QUERY)>>>\s*$/gm, '');
 }
 
 function escHtml(s) {
@@ -1602,6 +2483,12 @@ function exportarInforme() {
   /* Si hubo contexto propio, los módulos contrastaron el paper contra OTRA población y en
      el .txt eso queda todo bajo el mismo encabezado "PAPER ANALIZADO". Un colega que recibe
      el archivo no tiene cómo saberlo. */
+  if (p.fuente === 'pubmed-abstract') {
+    lineas.push('⚠️ EL ANÁLISIS SE HIZO SOBRE EL ABSTRACT DE PUBMED, NO SOBRE EL TEXTO COMPLETO.');
+    lineas.push('   Los módulos de sesgos, estadística y población miraron un resumen: alcanza');
+    lineas.push('   para un primer tamizaje, no para una lectura crítica.');
+    lineas.push('');
+  }
   if (ST.contextoInv) {
     lineas.push('⚠️ ESTE INFORME SE GENERÓ CON UN CONTEXTO DE INVESTIGACIÓN PROPIO CARGADO.');
     lineas.push('   Los módulos Diseño, Estadística y Población contrastaron el paper contra');
@@ -1610,7 +2497,7 @@ function exportarInforme() {
     lineas.push('');
   }
 
-  const modulos = {study:'🔬 DISEÑO DEL ESTUDIO',objectives:'🎯 OBJETIVOS',bias:'⚖️ SESGOS Y CALIDAD',stats:'📊 ESTADÍSTICA',population:'👥 POBLACIÓN',safety:'🛡️ SEGURIDAD',integrity:'🔍 CONFLICTOS',score:'⭐ EVALUACIÓN METODOLÓGICA',summary:'📝 RESUMEN/TRADUCCIÓN',journal:'🗣️ JOURNAL CLUB',retraction:'🚨 RETRACTACIÓN',timeline:'📅 LÍNEA DE TIEMPO',compare:'⚖️ COMPARADOR'};
+  const modulos = {study:'🔬 DISEÑO DEL ESTUDIO',objectives:'🎯 OBJETIVOS',bias:'⚖️ SESGOS Y CALIDAD',stats:'📊 ESTADÍSTICA',population:'👥 POBLACIÓN',safety:'🛡️ SEGURIDAD',integrity:'🔍 CONFLICTOS',score:'⭐ EVALUACIÓN METODOLÓGICA',summary:'📝 RESUMEN/TRADUCCIÓN',journal:'🗣️ JOURNAL CLUB',retraction:'🚨 RETRACTACIÓN',timeline:'📅 LÍNEA DE TIEMPO',compare:'⚖️ COMPARADOR',busqueda:'🔎 ESTRATEGIA DE BÚSQUEDA',matriz:'📊 MATRIZ DE COINCIDENCIA'};
 
   let hayAlgo = false;
   Object.entries(modulos).forEach(([key,label]) => {
@@ -1620,7 +2507,15 @@ function exportarInforme() {
       lineas.push('─'.repeat(60));
       lineas.push(label);
       lineas.push('─'.repeat(60));
-      lineas.push(r);
+      lineas.push(limpiarMarcadores(r));
+      /* La matriz sale de una tabla con semáforos: en el .txt es una lista de líneas y hay
+         que repetir el límite, porque el que lee el archivo no vio la advertencia de la
+         pantalla. */
+      if (key === 'matriz') {
+        lineas.push('');
+        lineas.push('   ⚠️ La coincidencia con UN artículo no es replicación ni validación externa.');
+        lineas.push('      Una serie observacional de un centro no confirma ni refuta un ensayo.');
+      }
       lineas.push('');
     }
   });
