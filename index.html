@@ -93,6 +93,9 @@ main{flex:1;padding:20px;overflow-y:auto;max-height:calc(100vh - 52px)}
 /* Respuesta IA */
 .ia-response{background:linear-gradient(135deg,#eaf4fb,#f7fbfe);border:1px solid var(--accentLt);border-left:4px solid var(--accentMid);border-radius:0 10px 10px 0;padding:16px 18px;margin-top:14px;animation:fadeIn .3s ease}
 .ia-response-label{font-size:.62rem;font-weight:700;letter-spacing:2px;color:var(--accentMid);text-transform:uppercase;margin-bottom:10px}
+/* Amarillo = referencias que escribió el modelo; verde = resultados del NCBI. El color es
+   lo que se ve de reojo al hojear el informe, que es cuando se copia una cita. */
+.ia-response.ia-con-refs{background:var(--goldLt);border-color:var(--gold)}
 .ia-response-text{font-size:.83rem;color:var(--inkSoft);line-height:1.75;white-space:pre-wrap}
 .ia-loading{display:flex;align-items:center;gap:8px;padding:14px;color:var(--accentMid);font-size:.82rem;margin-top:12px}
 .ia-spinner{width:14px;height:14px;border:2px solid var(--accentLt);border-top-color:var(--accentMid);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
@@ -276,7 +279,12 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
 .pico-val.falta{color:var(--warn);font-style:italic}
 
 /* ── PubMed ── */
-.pm-hit{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+/* La franja verde va en la regla BASE y sin !important. Como !important de hoja de autor gana
+   sobre un style= inline sin !important, la marca verde pisaba el borde rojo del artículo
+   RETRACTADO: quedaba una tarjeta con la bandera 🚨 y el acento del color que significa
+   «viene del NCBI, está bien». */
+.pm-hit{border:1px solid var(--border);border-left:3px solid var(--success);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+.pm-hit.retr-card{border-color:var(--danger);border-width:2px;border-left-color:var(--danger)}
 .pm-hit-title{font-size:.88rem;font-weight:600;color:var(--ink);line-height:1.45;margin-bottom:5px}
 .pm-hit-meta{font-size:.73rem;color:var(--inkMuted);line-height:1.5;margin-bottom:7px}
 .pm-hit-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px}
@@ -354,7 +362,11 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
   <div class="nav-group">Síntesis</div>
   <div class="nav-item" data-mod="summary"   onclick="goTo('summary',this)"><span>📝</span> Resumen</div>
   <div class="nav-item" data-mod="integrity" onclick="goTo('integrity',this)"><span>🔍</span> Conflictos</div>
-  <div class="nav-item" data-mod="score"     onclick="goTo('score',this)"><span>⭐</span> Score confianza</div>
+    <!-- «Evaluación metodológica» y no «Score confianza»: el prompt de este módulo termina con
+       «Nunca asignar un puntaje numérico», así que el rótulo prometía un número que el
+       módulo se niega a dar a propósito —un puntaje único sobre un paper se cita fuera de
+       contexto, que es por lo que las escalas tipo Jadad están desaconsejadas—. -->
+  <div class="nav-item" data-mod="score"     onclick="goTo('score',this)"><span>⭐</span> Evaluación metodológica</div>
 
   <div class="nav-group">Avanzado</div>
   <div class="nav-item" data-mod="compare"   onclick="goTo('compare',this)"><span>⚖️</span> Comparador</div>
@@ -960,7 +972,32 @@ const ST = {
 // ══════════════════════════════════════════════
 // API
 // ══════════════════════════════════════════════
-async function llamarIA(messages, systemPrompt, maxTokens=1500) {
+/* Se antepone al system prompt en llamarIA(), que es el único punto por el que salen las
+   cuatro llamadas de la app (extracción de PDF, los 14 módulos, el comparador y el resumen).
+   Puesta en la constante SYSTEM se saltearía cualquier llamada futura que mande su propio
+   system prompt, que es como se desincroniza. */
+const ANTI_ALUC = 'INSTRUCCIÓN CRÍTICA: No inventes referencias bibliográficas, autores, PMIDs, '+
+  'DOIs, nombres de revistas ni datos que no estén explícitamente en el texto del artículo '+
+  'proporcionado. Si necesitás citar algo que no está en el texto, indicá claramente que no '+
+  'podés verificarlo. Ante la duda, omití la referencia en lugar de inventarla.\n\n';
+/* Extraer o traducir NO es citar: ahí «ante la duda omití» le da permiso explícito a saltearse
+   una cifra ilegible, y una cifra que falta no se ve —no hay contra qué compararla—. */
+const ANTI_ALUC_LITERAL = 'INSTRUCCIÓN CRÍTICA: transcribí o traducí exactamente lo que está en '+
+  'el documento. No agregues, no completes y no quites nada que no esté ahí. Preservá todos los '+
+  'valores numéricos exactamente como aparecen: porcentajes, OR, HR, RR, valores p, IC 95 %, '+
+  'tamaños muestrales, medias y medianas. No redondees ni aproximes. Si algo es ilegible, '+
+  'escribilo como [ilegible] en vez de omitirlo.\n\n';
+
+async function llamarIA(messages, systemPrompt, maxTokens=1500, antiAluc, tipo='individual') {
+  /* La comprobación va ACÁ y no sólo en el botón: los botones se deshabilitan por UI, y una
+     llamada disparada desde otro camino —o desde la consola— salteaba el límite entero.
+     Se mira el pool QUE CORRESPONDE. Con `ind<=0 && comp<=0` el guard exigía que los DOS
+     estuvieran agotados: quien no usa nunca el comparador conserva sus 15 comparaciones para
+     siempre, así que la condición nunca se cumplía y la extracción de PDF —la única ruta que
+     no pasa por usarCredito()— quedaba sin límite ninguno. */
+  const _campo = (tipo === 'comparador') ? 'comp' : 'ind';
+  if (usoRestantes()[_campo] <= 0)
+    throw new Error('Alcanzaste el límite de uso de este mes. Se renueva el 1 del mes que viene.');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -977,7 +1014,10 @@ async function llamarIA(messages, systemPrompt, maxTokens=1500) {
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
-      system: systemPrompt,
+      /* Se CONCATENAN. Sustituyendo, las tres rutas literales perdían entera la cláusula
+         de «no inventes referencias» — y summary es justamente el módulo generativo sobre
+         el que después se buscan PMIDs inventados. */
+      system: ANTI_ALUC + (antiAluc || '') + systemPrompt,
       messages
     })
   });
@@ -1012,17 +1052,163 @@ function desconectarAPI() {
 function actualizarCreditos() {
   document.getElementById('creditsChip').textContent = `📄 ${ST.creditosInd} · ⚖️ ${ST.creditosComp}`;
 }
-function usarCredito(tipo='individual') {
-  if (tipo === 'comparador') {
-    if (ST.creditosComp <= 0) { alert('Sin créditos de comparación.'); return false; }
-    ST.creditosComp--;
-  } else {
-    if (ST.creditosInd <= 0) { alert('Sin créditos disponibles.'); return false; }
-    ST.creditosInd--;
-  }
+/* Límite de uso persistido por MES.
+   ATENCIÓN: esto es una barrera de PRIMERA LÍNEA y es CLIENT-SIDE. Cualquier usuario con la
+   consola abierta puede borrar la clave de localStorage y seguir consumiendo — no hay forma
+   de impedirlo sin servidor. La protección real llega con la migración a Supabase, donde el
+   contador vive del lado del backend junto con la clave de la API. Lo que sí resuelve esto es
+   el caso normal: que el contador sobreviva a recargar la página, que era lo que lo volvía
+   decorativo. */
+const USO_MAX = { ind: 50, comp: 15 };
+function _usoClave(){
+  const d = new Date();
+  return 'ev_uso_' + d.getFullYear() + '_' + String(d.getMonth()+1).padStart(2,'0');
+}
+function usoLeer(){
+  /* La clave lleva el mes, así que al cambiar de mes simplemente no existe y arranca en cero:
+     no hace falta comparar fechas ni resetear nada a mano. Se limpian de paso las claves de
+     meses anteriores para no dejar basura acumulándose. */
+  const k = _usoClave();
+  try{
+    Object.keys(localStorage).forEach(function(x){
+      if (x.indexOf('ev_uso_') === 0 && x !== k) localStorage.removeItem(x);
+    });
+    const raw = localStorage.getItem(k);
+    if (raw) {
+      const o = JSON.parse(raw);
+      const ind = Number(o.ind), comp = Number(o.comp);
+      if (isFinite(ind) && isFinite(comp) && ind >= 0 && comp >= 0)
+        return { ind: Math.min(ind, USO_MAX.ind), comp: Math.min(comp, USO_MAX.comp) };
+    }
+  }catch(e){}
+  return { ind:0, comp:0 };
+}
+function usoGuardar(u){
+  try{ localStorage.setItem(_usoClave(), JSON.stringify(u)); }catch(e){}
+}
+function usoRestantes(){
+  const u = usoLeer();
+  return { ind: Math.max(0, USO_MAX.ind - u.ind), comp: Math.max(0, USO_MAX.comp - u.comp) };
+}
+function usoSincronizarUI(){
+  const r = usoRestantes();
+  ST.creditosInd = r.ind; ST.creditosComp = r.comp;
   actualizarCreditos();
+}
+
+/* Devolver el crédito al almacén, no sólo a la variable de pantalla. Con el contador
+   persistido, incrementar `ST.creditosInd` dejaba el consumo cargado en localStorage: el chip
+   subía y el siguiente refresco lo bajaba de vuelta, sin explicación para quien acababa de
+   perder una llamada por un error de red. */
+function devolverCredito(tipo='individual'){
+  const u = usoLeer(), campo = (tipo === 'comparador') ? 'comp' : 'ind';
+  u[campo] = Math.max(0, u[campo] - 1);
+  usoGuardar(u);
+  usoSincronizarUI();
+}
+
+function usarCredito(tipo='individual') {
+  const u = usoLeer();
+  const campo = (tipo === 'comparador') ? 'comp' : 'ind';
+  if (u[campo] >= USO_MAX[campo]) {
+    alert(tipo === 'comparador'
+      ? 'Alcanzaste el límite de comparaciones de este mes.'
+      : 'Alcanzaste el límite de análisis de este mes.');
+    usoSincronizarUI();
+    return false;
+  }
+  u[campo]++;
+  usoGuardar(u);
+  usoSincronizarUI();
   return true;
 }
+
+/* ══ Cotejo de cifras (ES-06) ══
+   Compara los números del texto original contra los del resumen generado. Es un chequeo de
+   DÍGITOS, no de significado: no sabe si un 45 quedó en la frase que corresponde, y no ve los
+   separadores —un «1.240» que pase a significar 1,24 conserva los mismos dígitos—. Sirve para
+   lo que sí detecta: una cifra que directamente no llegó. */
+function _cifrasDe(t){
+  const out = new Set();
+  /* Se BORRA la etiqueta del intervalo antes de extraer, en vez de excluirla con un
+     lookbehind. Dos motivos, y el primero es el que importa:
+     1. El lookbehind es sintaxis que WebKit sólo soporta desde Safari 16.4. Escrito como
+        literal, el motor lo valida al PARSEAR, no al ejecutar — y todo el JS de esta app vive
+        en un solo <script>. En un iPhone que no pase de iOS 15 la app entera no arrancaba:
+        HTML estático y ni un botón vivo, sin error visible desde una Mac al día.
+     2. Cubre las dos convenciones. «IC 95 %» (español) y «95% CI» (inglés) se escriben con el
+        95 de distinto lado, así que una exclusión por prefijo dejaba pasar la inglesa — y el
+        original de una traducción SIEMPRE es la inglesa. */
+  const txt = String(t||'')
+    .replace(/\b(?:IC|CI)\s*(?:del\s*)?9[05]\s*%?/gi, ' ')
+    .replace(/\b9[05]\s*%\s*(?:IC|CI)\b/gi, ' ');
+  /* Se buscan las cifras que importan en un paper y NO cualquier número: los años y las
+     numeraciones de sección producían decenas de falsos positivos.
+     OR/HR/RR van SIN /i a propósito: en minúscula, «or» es la conjunción inglesa («10 or 20»)
+     y en una app de cardiología «hr 72» es la frecuencia cardíaca. */
+  const pats = [
+    { re: /\bN\s*=\s*(\d[\d.,]*)/gi,           tipo:'n'   },
+    { re: /\b(\d[\d.,]*)\s*%/g,                  tipo:'pct' },
+    { re: /\bp\s*[=<>]\s*(0?[.,]\d+)/gi,        tipo:'p'   },
+    { re: /\b(?:OR|HR|RR)\s*[=:]?\s*(\d[\d.,]*)/g, tipo:'ef' }
+  ];
+  pats.forEach(function(pt){
+    let m; while ((m = pt.re.exec(txt)) !== null) {
+      const n = _numDe(m[1]);
+      if (n !== null) out.add(pt.tipo + ':' + n);
+    }
+  });
+  return out;
+}
+/* Un número escrito en cualquiera de las dos convenciones. `1.240` es mil doscientos cuarenta
+   en español y `1,240` lo es en inglés: sin distinguirlas, un N=1,240 de un paper inglés se
+   leía 1,24 y se reportaba como cifra faltante con tres órdenes de magnitud de diferencia. */
+function _numDe(s){
+  /* Se recorta la puntuación final ANTES de decidir el formato: la captura es `[\d.,]*` y es
+     glotona, así que en «N=1.240, pacientes» se lleva la coma del final y «1.240,» dejaba de
+     parecer un separador de miles — se leía 1,240 y salía reportado como cifra faltante con
+     tres órdenes de magnitud de diferencia. */
+  let t = String(s).trim().replace(/[.,]+$/,'');
+  /* El primer grupo tiene que empezar en 1-9: con `\d{1,3}` un «0,001» —un valor p— encajaba
+     como separador de miles inglés y se convertía en 1. Un p de 0,001 leído como 1 es la
+     diferencia entre altamente significativo y sin significación. */
+  if (/^[1-9]\d{0,2}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g,'').replace(',','.');   // 1.240,5
+  else if (/^[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g,'');                 // 1,240.5
+  else t = t.replace(',', '.');
+  const n = parseFloat(t);
+  return isFinite(n) ? n : null;
+}
+function cotejarCifras(original, generado){
+  const a = [..._cifrasDe(original)], b = [..._cifrasDe(generado)].map(function(x){
+    const i = x.indexOf(':'); return { tipo:x.slice(0,i), val:parseFloat(x.slice(i+1)) };
+  });
+  /* Tolerancia POR CATEGORÍA. Con ±0,01 plano, un OR de 0,62 contra 0,63 daba «presente»:
+     los OR se publican con dos decimales, así que la tolerancia valía una unidad entera de
+     reporte y el valor de al lado siempre pasaba. Y se compara tipo con tipo: un 12,4 que era
+     un porcentaje no puede darse por presente porque el resumen traiga un HR de 12,4. */
+  const TOL = { n:0, p:0, ef:0.005, pct:0.05 };
+  const faltan = [];
+  a.forEach(function(x){
+    const i = x.indexOf(':'), tipo = x.slice(0,i), val = parseFloat(x.slice(i+1));
+    const tol = TOL[tipo] !== undefined ? TOL[tipo] : 0.01;
+    if (!b.some(function(y){ return y.tipo === tipo && Math.abs(y.val - val) <= tol; }))
+      faltan.push(val);
+  });
+  return { total:a.length, faltan:faltan };
+}
+
+/* ══ Referencias generadas por IA (ES-09) ══
+   Las de la búsqueda PubMed vienen del NCBI y son reales; las que el modelo escribe dentro de
+   un análisis pueden no existir. Se avisa cuando el texto trae algo con forma de PMID o de
+   cita, y se distingue por color del bloque verde de la búsqueda real. */
+function _tieneRefsIA(t){
+  return /\bPMID\s*:?\s*\d{6,9}\b/i.test(t) || /\bdoi\s*:?\s*10\.\d{4,}/i.test(t);
+}
+const AVISO_REFS_IA = '<div class="alert alert-warn" style="font-size:.8rem;margin-bottom:10px">'+
+  '⚠️ <b>Las referencias a continuación fueron generadas por IA y pueden contener errores.</b> '+
+  'Verificá cada PMID en PubMed antes de citarlo en cualquier trabajo académico. '+
+  'Las referencias de la búsqueda PubMed integrada (sección <b>Buscar en PubMed</b>) sí vienen '+
+  'de la base del NCBI y son reales.</div>';
 
 // ══════════════════════════════════════════════
 // NAVEGACIÓN
@@ -1149,13 +1335,18 @@ async function cargarPaper(idx) {
   let ok = true;
   if (p.pdf && ST.iaActiva) {
     try {
+      /* usarCredito() y no `ST.creditosInd--`: el decremento directo tocaba sólo la variable
+         de pantalla, así que el chip bajaba a −1, −2… mientras el almacén seguía en cero y el
+         primer refresco lo devolvía a 50. Y va ANTES del await: cobrar después no es un
+         límite, es un recibo. */
+      if (!usarCredito('individual')) { btn.disabled=false; btn.textContent='↻ Reintentar carga'; return; }
       const resp = await llamarIA([{
         role:'user',
         content:[
           {type:'document', source:{type:'base64', media_type:'application/pdf', data:p.pdf}},
           {type:'text', text:`Extraé de este paper:\nTÍTULO: [título completo]\nAÑO: [año]\nREVISTA: [revista]\nCONTENIDO: [abstract + métodos + resultados + conclusiones]\nDevolvé SOLO estas secciones etiquetadas.`}
         ]
-      }], SYSTEM, 2000);
+      }], SYSTEM, 2000, ANTI_ALUC_LITERAL);
       const titulo = resp.match(/TÍTULO:\s*(.+)/)?.[1]?.trim()||'';
       const anio   = resp.match(/AÑO:\s*(.+)/)?.[1]?.trim()||'';
       const revista= resp.match(/REVISTA:\s*(.+)/)?.[1]?.trim()||'';
@@ -1164,8 +1355,6 @@ async function cargarPaper(idx) {
       if (anio) ST.papers[idx].anio = anio;
       if (revista) ST.papers[idx].revista = revista;
       if (cont) ST.papers[idx].texto = cont;
-      ST.creditosInd--;
-      actualizarCreditos();
       // FIX: si la extracción no devolvió contenido ni título, considerar fallido.
       if (!cont && !titulo) ok = false;
     } catch(e) { console.warn('Extracción PDF falló:', e); ok = false; }
@@ -1407,7 +1596,9 @@ const PROMPTS = {
     const papers = ST.comparePapers.map((h,i) =>
       `PAPER ${i+1}: "${h.titulo}" (${h.anio||'s/año'}${h.revista?', '+h.revista:''})\n${h.texto ? h.texto.substring(0,6000) : '[sin texto]'}`
     ).join('\n\n'+'-'.repeat(40)+'\n\n');
-    return `Comparé sistemáticamente estos ${ST.comparePapers.length} papers:\n\n${papers}\n\nSi la información disponible de algún paper es insuficiente para comparar un campo específico (endpoint primario, safety, etc.), indicá explícitamente: "Dato no disponible en el extracto" — no inferir ni completar.\n\n1. DISEÑO DE CADA ESTUDIO\n2. POBLACIÓN ESTUDIADA\n3. INTERVENCIÓN O EXPOSICIÓN\n4. RESULTADOS PRIMARIOS (cifras exactas)\n5. CONCLUSIONES — ¿consistentes o contradictorias? ¿por qué difieren?\n6. SESGOS Y LIMITACIONES COMPARADAS\n7. APLICABILIDAD A LATAM\n8. VEREDICTO FINAL\n   - Semáforo: 🟢 Evidencia consistente / 🟡 Mixta / 🔴 Contradictoria`;
+    return `Antes de comparar, verificá si ambos artículos tratan el mismo tema clínico o la misma intervención. Si son sobre temas claramente distintos —por ejemplo uno sobre fibrilación auricular y otro sobre insuficiencia renal sin relación entre sí—, empezá la respuesta con exactamente esta línea: "ADVERTENCIA: Los artículos parecen tratar temas distintos. La comparación puede no ser clínicamente relevante." y después procedé igual con la comparación.
+
+Comparé sistemáticamente estos ${ST.comparePapers.length} papers:\n\n${papers}\n\nSi la información disponible de algún paper es insuficiente para comparar un campo específico (endpoint primario, safety, etc.), indicá explícitamente: "Dato no disponible en el extracto" — no inferir ni completar.\n\n1. DISEÑO DE CADA ESTUDIO\n2. POBLACIÓN ESTUDIADA\n3. INTERVENCIÓN O EXPOSICIÓN\n4. RESULTADOS PRIMARIOS (cifras exactas)\n5. CONCLUSIONES — ¿consistentes o contradictorias? ¿por qué difieren?\n6. SESGOS Y LIMITACIONES COMPARADAS\n7. APLICABILIDAD A LATAM\n8. VEREDICTO FINAL\n   - Semáforo: 🟢 Evidencia consistente / 🟡 Mixta / 🔴 Contradictoria`;
   }
 };
 
@@ -1420,7 +1611,9 @@ const KEY_CONCEPTS = {
   safety: ['NNT y NNH','Reducción absoluta del riesgo (RAR)'],
   charts: ['Forest plot','Curvas ROC / área bajo la curva (AUC)'],
   integrity: ['Informe selectivo de resultados'],
-  score: ['Niveles de evidencia (SIGN)','GRADE'],
+  /* GRADE fuera: el prompt de este módulo dice literalmente que no se aplica a un paper
+     individual, así que ofrecerlo como concepto clave del módulo lo contradice. */
+  score: ['Niveles de evidencia (SIGN)','Riesgo de sesgo'],
   compare: ['Revisión sistemática vs narrativa','Heterogeneidad','Forest plot']
 };
 
@@ -1475,14 +1668,37 @@ async function callIA(mod) {
       messages = [{role:'user', content: prompt}];
     }
 
-    const resp = await llamarIA(messages, SYSTEM);
+    /* La variante literal va SÓLO en modo traducción. En «resumen» y «tabla» el system diría
+       «no agregues, no completes y no quites nada» mientras el prompt de usuario pide un
+       resumen ejecutivo o extraer sólo las recomendaciones: instrucciones contradictorias, con
+       resultado impredecible y no verificable. */
+    const resp = await llamarIA(messages, SYSTEM, 1500, (mod==='summary'&&ST.sumMode==='traduccion')?ANTI_ALUC_LITERAL:undefined);
     /* Desde acá los tokens ya se facturaron: devolver el crédito sería regalar uno que la
        API sí cobró. Y el resultado se guarda DESPUÉS de renderizar bien: si algo fallaba
        entre medio, la UI mostraba "Error" y el módulo igual salía en el informe exportado. */
     creditoConsumido = false;
 
-    iaDiv.innerHTML = `
-      <div class="ia-response">
+    /* El cotejo corre sólo en summary, que es el módulo cuyo trabajo ES reproducir las cifras
+       del original. En los demás la salida es interpretación y las cifras no tienen por qué
+       aparecer todas: avisar ahí sería ruido que enseña a ignorar el aviso. */
+    let avisoCifras = '';
+    /* Sólo en modo TRADUCCIÓN. El default de SmartSummary es «resumen» —siete secciones
+       ejecutivas— y «tabla» extrae sólo recomendaciones: en ninguno de los dos el trabajo es
+       reproducir cada OR y cada p, así que el aviso era un falso positivo estructural desde el
+       primer uso. Y se coteja contra el MISMO recorte que se le mandó al modelo: comparando
+       contra p.texto entero, cada cifra a partir del carácter 5001 salía como faltante con
+       garantía del 100 %. Un aviso que sale siempre deja de leerse. */
+    if (mod === 'summary' && p.texto && ST.sumMode === 'traduccion' && !/\[CONTINUA/i.test(resp)) {
+      const cot = cotejarCifras(p.texto.substring(0,5000), resp);
+      if (cot.faltan.length) avisoCifras =
+        '<div class="alert alert-warn" style="font-size:.8rem;margin-bottom:10px">'+
+        '⚠️ <b>Posible discrepancia numérica:</b> verificá que los valores del resumen coincidan '+
+        'con el original. No se encontraron en el resumen: '+
+        escHtml(cot.faltan.slice(0,8).map(function(x){return x.toLocaleString('es-UY');}).join(' · '))+(cot.faltan.length>8?' …':'')+'.</div>';
+    }
+    const avisoRefs = _tieneRefsIA(resp) ? AVISO_REFS_IA : '';
+    iaDiv.innerHTML = avisoCifras + avisoRefs + `
+      <div class="ia-response${_tieneRefsIA(resp)?' ia-con-refs':''}">
         <div class="ia-response-label">✦ EvidenceSmart AI</div>
         <div class="ia-response-text">${escHtml(limpiarMarcadores(resp))}</div>
       </div>`;
@@ -1522,7 +1738,7 @@ async function callIA(mod) {
   } catch(e) {
     /* Se devuelve el crédito: se descuenta antes de llamar, así que un error de red o de
        clave lo consumía sin haber entregado ningún análisis. */
-    if (creditoConsumido) { if (tipoCredito === 'comparador') ST.creditosComp++; else ST.creditosInd++; actualizarCreditos(); }
+    if (creditoConsumido) devolverCredito(tipoCredito);
     const esRed = /failed to fetch|networkerror|load failed/i.test(e.message || '');
     iaDiv.innerHTML = `<div class="alert alert-danger">⚠️ ${esRed
       ? 'No se pudo contactar a la API de Anthropic. Revisá tu conexión y que la clave siga vigente.'
@@ -2093,7 +2309,7 @@ async function buscarPubMed() {
       const doi = ((r.articleids || []).find(a => a && a.idtype === 'doi') || {}).value || '';
       const abs = extra.abstract || '';
 
-      return '<div class="pm-hit"' + (retractado ? ' style="border-color:var(--danger);border-width:2px"' : '') + '>' +
+      return '<div class="pm-hit' + (retractado ? ' retr-card' : '') + '">' +
         (banderas ? '<div style="margin-bottom:6px">' + banderas + '</div>' : '') +
         '<div class="pm-hit-title">' + escHtml(r.title || (sinMeta ? '(metadatos no disponibles)' : '(sin título)')) + '</div>' +
         '<div class="pm-hit-meta">' +
@@ -2477,12 +2693,14 @@ async function agregarCompare() {
     try {
       // FIX: extraer el texto lo más completo posible (no un resumen breve) para no perder
       // metodología, resultados ni eventos adversos en la comparación.
+      /* Cobra ANTES del await y del pool del COMPARADOR. Antes cobraba después —o sea que el
+         aviso de límite salía habiendo servido ya la extracción— y del pool individual. */
+      if (!usarCredito('comparador')) return;
       texto = await llamarIA([{role:'user',content:[
         {type:'document', source:{type:'base64',media_type:'application/pdf',data:ST.compPdfB64}},
         {type:'text', text:'Extraé el texto completo del artículo (abstract, métodos, resultados con cifras, tablas de resultados, eventos adversos y conclusiones). Solo texto, sin resumir ni omitir.'}
-      ]}], SYSTEM, 4000);
-      usarCredito();
-    } catch(e) { texto = ''; }
+      ]}], SYSTEM, 4000, ANTI_ALUC_LITERAL, 'comparador');
+    } catch(e) { devolverCredito('comparador'); texto = ''; }
   }
 
   ST.comparePapers.push({id:Date.now(), titulo, anio, revista, texto});
@@ -2680,14 +2898,14 @@ const MANUAL_DATA = [
   {p:'EvidenceSmart analiza el paper a través de 10 módulos especializados.'},
   {h:'Módulo 1 — Diseño del estudio', p:'Identifica el tipo de estudio (ECA, cohorte, casos-controles, meta-análisis) y evalúa el tamaño muestral y la potencia estadística declarada.'},
   {h:'Módulo 2 — Objetivos', p:'Extrae el objetivo primario y los secundarios, evalúa si se alcanzaron con significancia estadística y clínica, y detecta cambios de objetivo durante el estudio (outcome switching). Usa semáforo 🟢🟡🔴 por cada objetivo.'},
-  {h:'Módulo 3 — Sesgos', p:'Detecta sesgos de selección, información, confusión, seguimiento y publicación. Calcula scores de calidad con escalas validadas (GRADE, Jadad, Newcastle-Ottawa según el tipo de estudio).'},
+  {h:'Módulo 3 — Sesgos', p:'Evalúa el riesgo de sesgo con la herramienta que corresponde al diseño (RoB 2 para ECA, ROBINS-I para observacionales, QUADAS-2 para pruebas diagnósticas, AMSTAR 2 o ROBIS para revisiones). Devuelve juicios categóricos —bajo riesgo, algunas preocupaciones, alto riesgo—, <b>no un puntaje numérico</b>: GRADE no se aplica a un paper individual, y las escalas de un solo dígito como Jadad o Newcastle-Ottawa están desaconsejadas para la lectura crítica por la misma razón que el módulo de evaluación metodológica no da un número.'},
   {h:'Módulo 4 — Estadística', p:'Analiza valor p, IC 95%, NNT, NNH y tamaño del efecto. Verifica si el test estadístico usado es el correcto para el tipo de datos.'},
   {h:'Módulo 5 — Población', p:'Analiza características basales y criterios de inclusión y exclusión, y evalúa la representatividad y la generalizabilidad de los resultados.'},
   {h:'Módulo 6 — Efectos adversos', p:'Extrae y analiza los efectos adversos y las complicaciones reportadas en el paper.'},
   {h:'Módulo 7 — Gráficas', p:'Si se sube el PDF, la IA lee las imágenes, identifica el tipo de gráfico (Kaplan-Meier, forest plot, box plot) y explica qué muestra cada resultado visual.'},
   {h:'Módulo 8 — Resumen (SmartSummary)', p:'Genera un resumen estructurado del artículo en el idioma que elijas: español, portugués o inglés. Preserva las recomendaciones con su clase y nivel de evidencia cuando aplica.'},
   {h:'Módulo 9 — Conflicto de intereses', p:'Analiza el financiamiento del estudio, las afiliaciones de los autores y las declaraciones de conflicto de interés.'},
-  {h:'Módulo 10 — Score de confianza', p:'Sintetiza todos los módulos en un número del 1 al 10 que representa la confiabilidad metodológica general del paper.'}
+  {h:'Módulo 10 — Evaluación metodológica', p:'Sintetiza los módulos anteriores en una valoración por dimensiones: riesgo de sesgo, precisión, consistencia con la evidencia previa, aplicabilidad y limitaciones. <b>No devuelve un puntaje del 1 al 10</b>, y es deliberado: un número único sobre un paper termina citándose fuera de contexto, que es la razón por la que las escalas de calidad de un solo dígito están desaconsejadas para la lectura crítica.'}
 ]},
 { icon:'🔍', t:'Búsqueda en PubMed', b:[
   {p:'EvidenceSmart tiene una búsqueda integrada con la API de NCBI (PubMed).'},
@@ -2726,7 +2944,7 @@ const MANUAL_DATA = [
   {h:'Qué incluye', ul:[
     'Encabezado con título del paper, revista y fecha de análisis.',
     'Resultados de cada módulo activado con sus semáforos.',
-    'Score de confianza final.',
+    'Evaluación metodológica por dimensiones.',
     'Resumen SmartSummary, si fue generado.',
     'Formulación PICO, si está disponible.',
     'Disclaimer médico-legal.']},
@@ -2950,6 +3168,8 @@ function abrirGuia(idx) {
 // INIT
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+  // Repone el uso del mes en curso: la clave lleva el mes, así que al cambiar arranca en cero.
+  usoSincronizarUI();
   goTo('upload', document.querySelector('[data-mod="upload"]'));
   // Pre-fill timeline con título si hay paper
   document.getElementById('timeline-tema').value = '';
