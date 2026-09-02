@@ -144,6 +144,58 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
 .action-btn-compare{background:#c9a84c}
 .action-btn-compare:hover:not(:disabled){background:var(--gold)}
 
+/* ── Manual de uso ── */
+.man-intro{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.man-intro-t{font-family:Georgia,serif;font-size:1.05rem;color:var(--ink);margin-bottom:4px}
+.man-intro-d{font-size:.78rem;color:var(--inkMuted);line-height:1.6}
+.man-acc{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;box-shadow:var(--shadow);overflow:hidden}
+/* El encabezado es un <button>: teclado y lector de pantalla lo tratan como control sin
+   que haya que agregarle role ni tabindex a mano, que es lo que se olvida y no se nota. */
+.man-acc-head{width:100%;display:flex;align-items:center;gap:9px;padding:13px 16px;background:none;border:none;
+  cursor:pointer;text-align:left;font-family:inherit;font-size:.88rem;font-weight:700;color:var(--ink);min-height:44px}
+.man-acc-head:hover{background:#f5faff}
+.man-acc-head:focus-visible{outline:2px solid var(--accentMid);outline-offset:-2px}
+.man-acc[data-abierto="1"] .man-acc-head{color:var(--accent);border-bottom:1px solid var(--border)}
+.man-acc-icon{font-size:1.05rem;flex:0 0 auto}
+.man-acc-t{flex:1}
+.man-caret{flex:0 0 auto;color:var(--inkMuted);font-size:.75rem;transition:transform .18s}
+.man-acc[data-abierto="1"] .man-caret{transform:rotate(90deg)}
+.man-acc-body{display:none;padding:14px 16px 16px;font-size:.82rem;color:var(--inkSoft);line-height:1.7}
+.man-acc[data-abierto="1"] .man-acc-body{display:block}
+.man-acc-body p{margin-bottom:9px}
+.man-acc-body p:last-child{margin-bottom:0}
+.man-h{font-size:.74rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--accent);margin:12px 0 5px}
+.man-ul{margin:0 0 9px 18px;padding:0}
+.man-ul li{margin-bottom:4px}
+.man-nota{background:var(--warnLt);border-left:3px solid var(--warn);border-radius:0 7px 7px 0;padding:9px 12px;margin:10px 0;font-size:.79rem;color:#6b4a08}
+.man-ej{background:var(--accentLt);border-left:3px solid var(--accentMid);border-radius:0 7px 7px 0;padding:9px 12px;margin:10px 0;font-size:.79rem;color:#123c56}
+.man-print-only{display:none}
+/* Impresión: el navegador guarda como PDF. Se ocultan el marco de la app y todo lo que no
+   sea el manual, y se ABREN los once acordeones —si no, el PDF sale con once títulos y
+   ningún contenido, que es exactamente lo que el usuario cree que descargó. */
+@media print{
+  header,#sidebar,#api-warning,#api-bar,.man-noprint{display:none!important}
+  body{background:#fff}
+  .body-wrap{display:block!important}
+  /* main es un contenedor de SCROLL con max-height de un viewport (regla de arriba). Sin
+     soltarlo, el navegador pagina sólo lo que entra en la caja y descarta el resto: el
+     manual mide 4.500 px y salía un PDF de una página, sin error y sin diferencia visible
+     hasta abrirlo. Aplica a todos los módulos, no sólo al manual — todos se imprimían
+     recortados igual. */
+  main{padding:0!important;max-height:none!important;overflow:visible!important}
+  nav{max-height:none!important;overflow:visible!important}
+  .man-print-only{display:block!important}
+  .man-acc-body{display:block!important}
+  .man-caret{display:none!important}
+  .man-acc{break-inside:avoid;page-break-inside:avoid;box-shadow:none;margin-bottom:10px}
+  .man-acc-head{border-bottom:1px solid var(--border)}
+  /* El pie va en FLUJO, no position:fixed: fijo se repite en todas las páginas en unos
+     motores y sólo en la primera en otros, y se mete dentro del margen de @page. En flujo
+     sale una vez, al final, y se comporta igual en todos. */
+  .man-pie{margin-top:14px;font-size:.62rem;color:#777;text-align:center;
+    border-top:1px solid #ddd;padding-top:5px}
+  @page{margin:16mm 14mm 20mm}
+}
 /* ── Guía ── */
 .guide-toolbar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .guide-search{flex:1;min-width:180px;padding:7px 12px;border:1px solid var(--border);border-radius:7px;font-size:.84rem;outline:none;background:var(--bg);font-family:inherit}
@@ -317,6 +369,10 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
   <div class="nav-group">Recursos</div>
   <div class="nav-item" data-mod="export" onclick="goTo('export',this)"><span>📤</span> Exportar informe</div>
   <div class="nav-item" data-mod="guide"  onclick="goTo('guide',this)"><span>📖</span> Guía metodológica</div>
+  <!-- Manual de USO de la app. Va aparte de «Guía metodológica», que es un glosario de 49
+       conceptos (diseños, RR/OR/HR, sesgos): son dos contenidos distintos y juntarlos bajo un
+       nombre dejaba al buscador del glosario filtrando la mitad de lo que se ve. -->
+  <div class="nav-item" data-mod="manual" onclick="goTo('manual',this)"><span>📘</span> Manual de uso</div>
 </nav>
 
 <!-- MAIN -->
@@ -832,6 +888,30 @@ textarea.paper-text:focus{border-color:var(--accentMid)}
   <div id="guide-cats"></div>
 </div>
 
+<!-- MANUAL DE USO -->
+<div id="mod-manual" style="display:none">
+  <div class="man-intro man-noprint">
+    <div class="man-intro-t">📘 Manual de uso</div>
+    <div class="man-intro-d">Cómo usar EvidenceSmart, paso a paso. Tocá cada sección para abrirla.</div>
+  </div>
+  <!-- Encabezado y pie que sólo salen al imprimir: en pantalla el marco de la app ya dice
+       dónde estás, pero el PDF viaja solo y sin esto no se sabe de qué app salió. -->
+  <div class="man-print-only" style="margin-bottom:14px;border-bottom:2px solid #1a5276;padding-bottom:8px">
+    <!-- «Manual de uso» y no «Guía Metodológica»: ése es el nombre del OTRO módulo, el
+         glosario de 49 conceptos. El PDF viaja solo y se comparte, así que el título es lo
+         único que dice qué es; con el rótulo cruzado iban a existir dos PDF con el mismo
+         nombre y contenidos distintos. -->
+    <div style="font-family:Georgia,serif;font-size:1.35rem;color:#0f1923">EvidenceSmart — Manual de uso</div>
+    <div style="font-size:.7rem;color:#7a8d99;letter-spacing:1.5px;text-transform:uppercase;margin-top:3px">CeiboMed · Guía de uso paso a paso</div>
+  </div>
+  <div id="manual-acc"></div>
+  <div class="man-noprint" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <button class="btn btn-primary" onclick="imprimirManual()">📥 Descargar manual (PDF)</button>
+    <span style="font-size:.74rem;color:var(--inkMuted)">Se abre el diálogo de impresión — elegí «Guardar como PDF» como destino.</span>
+  </div>
+  <div class="man-print-only man-pie" id="manual-pie"></div>
+</div>
+
 </main>
 </div>
 </div>
@@ -959,6 +1039,7 @@ function goTo(mod, el) {
 
   // Inicializar módulos especiales
   if (mod === 'guide') renderGuide();
+  if (mod === 'manual') renderManual();
   if (mod === 'library') renderLibrary();
   if (mod === 'compare') renderComparePapers();
   if (mod === 'summary') syncSumUI();
@@ -972,7 +1053,10 @@ function goTo(mod, el) {
 
   /* 'pubmed' sale de la lista: es una base pública y no analiza el paper, así que el cartel
      "no hay paper cargado" ahí sería falso. 'matriz' NO sale: necesita el paper de verdad. */
-  if (!['upload','guide','library','compare','timeline','busqueda','pubmed'].includes(mod) && !ST.papers[ST.paperActivo].cargado) {
+  /* 'manual' entra en la lista: es el manual de la app y no analiza nada, así que el
+     cartel «no hay paper cargado» encima de las instrucciones para cargar el primero
+     sería contradecirse solo. */
+  if (!['upload','guide','manual','library','compare','timeline','busqueda','pubmed'].includes(mod) && !ST.papers[ST.paperActivo].cargado) {
     mostrarNoPaperWarn(target);
   } else {
     document.querySelectorAll('.no-paper-warn').forEach(e => e.remove());
@@ -2547,6 +2631,197 @@ function exportarInforme() {
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { try { document.body.removeChild(a); } catch(e){} URL.revokeObjectURL(url); }, 1000);
+}
+
+// ══════════════════════════════════════════════
+// MANUAL DE USO
+// ══════════════════════════════════════════════
+/* El contenido es DATO, no HTML. Cada bloque declara su tipo y renderManual() lo baja al DOM
+   con createElement y textContent: no hay ni una concatenación de markup, así que no existe
+   la ruta por la que un carácter del texto podría interpretarse como etiqueta. Es más verboso
+   que un template literal y es a propósito — el resto de la app escapa con escHtml() en cada
+   interpolación, y basta olvidarse en una para abrir el agujero. */
+const MANUAL_DATA = [
+{ icon:'❓', t:'¿Qué es EvidenceSmart?', b:[
+  {p:'EvidenceSmart es una herramienta de análisis metodológico de artículos científicos impulsada por inteligencia artificial. Permite evaluar el diseño, la estadística, los sesgos y la calidad de un paper en minutos. No reemplaza el juicio clínico ni la lectura crítica del artículo original.'},
+  {h:'Qué puede hacer', ul:[
+    'Identificar el tipo de estudio.',
+    'Evaluar la calidad metodológica.',
+    'Detectar sesgos.',
+    'Interpretar resultados estadísticos.',
+    'Generar resúmenes estructurados.',
+    'Comparar papers sobre el mismo tema.']},
+  {h:'Qué NO puede hacer', ul:[
+    'Acceder a papers que no le cargues.',
+    'Verificar datos clínicos en tiempo real.',
+    'Reemplazar bases de datos como PubMed de forma autónoma.',
+    'Garantizar la exactitud de cada referencia bibliográfica generada por la IA.']},
+  {nota:'La IA puede cometer errores en referencias bibliográficas. Verificá siempre el PMID en PubMed antes de citar cualquier artículo en una presentación, una tesis o una publicación. La búsqueda integrada de PubMed (con la API de NCBI) devuelve artículos reales — esos sí son confiables.'}
+]},
+{ icon:'🚀', t:'Inicio rápido (3 pasos)', b:[
+  {h:'Paso 1 — Cargar el paper', p:'Pegá el abstract o el texto completo en el campo de texto, o subí el PDF directamente. Completá título y revista (campos obligatorios).'},
+  {h:'Paso 2 — Analizar', p:'Hacé clic en «Analizar paper» y esperá que la IA procese el artículo. Puede tardar entre 15 y 40 segundos según la extensión.'},
+  {h:'Paso 3 — Exportar', p:'Cuando el análisis esté completo, hacé clic en «Exportar informe» para generar el archivo con todos los módulos analizados.'}
+]},
+{ icon:'📄', t:'Cargar paper', b:[
+  {p:'Hay dos formas de cargar el contenido a analizar.'},
+  {h:'Opción A — Pegar texto', p:'Copiá el abstract o el texto completo del paper y pegalo en el campo «Texto del artículo». Cuanto más texto pegues, más completo será el análisis.'},
+  {h:'Opción B — Subir PDF', p:'Hacé clic en el ícono de carga de PDF y seleccioná el archivo. La app extrae el texto automáticamente. Funciona mejor con PDFs de texto, no escaneados.'},
+  {h:'Campos obligatorios', p:'El título del artículo y el nombre de la revista. Sin esos datos el informe no puede generarse correctamente.'},
+  {ej:'Si el paper está en inglés el análisis se hace igual — el resumen se puede pedir en español desde el Módulo 8 (SmartSummary).'}
+]},
+{ icon:'🔬', t:'Contexto de investigación', b:[
+  {p:'El campo «Contexto de investigación» permite enriquecer el análisis con datos propios. Es especialmente útil cuando se usa EvidenceSmart junto a CeiboAnalytics.'},
+  {h:'Qué pegar acá', p:'El resumen estadístico exportado desde CeiboAnalytics: el texto o markdown con los indicadores del laboratorio — FEVI promedio, distribución de patologías, METs promedio.'},
+  {h:'Qué mejora', p:'Cuando la IA tiene el contexto de tu población real puede comparar si los resultados del paper son aplicables a tus pacientes, si las características basales del estudio coinciden con las de tu laboratorio, y si las conclusiones son extrapolables a tu práctica.'},
+  {ej:'Si analizás el paper COAPT y pegás que tu población de insuficiencia mitral funcional tiene una FEVI promedio de 32% con diámetro telediastólico de 64 mm, la IA puede señalar si tu población se parece más a COAPT (que sí mostró beneficio) o a MitraFR (que no lo mostró).'}
+]},
+{ icon:'🧩', t:'Módulos de análisis', b:[
+  {p:'EvidenceSmart analiza el paper a través de 10 módulos especializados.'},
+  {h:'Módulo 1 — Diseño del estudio', p:'Identifica el tipo de estudio (ECA, cohorte, casos-controles, meta-análisis) y evalúa el tamaño muestral y la potencia estadística declarada.'},
+  {h:'Módulo 2 — Objetivos', p:'Extrae el objetivo primario y los secundarios, evalúa si se alcanzaron con significancia estadística y clínica, y detecta cambios de objetivo durante el estudio (outcome switching). Usa semáforo 🟢🟡🔴 por cada objetivo.'},
+  {h:'Módulo 3 — Sesgos', p:'Detecta sesgos de selección, información, confusión, seguimiento y publicación. Calcula scores de calidad con escalas validadas (GRADE, Jadad, Newcastle-Ottawa según el tipo de estudio).'},
+  {h:'Módulo 4 — Estadística', p:'Analiza valor p, IC 95%, NNT, NNH y tamaño del efecto. Verifica si el test estadístico usado es el correcto para el tipo de datos.'},
+  {h:'Módulo 5 — Población', p:'Analiza características basales y criterios de inclusión y exclusión, y evalúa la representatividad y la generalizabilidad de los resultados.'},
+  {h:'Módulo 6 — Efectos adversos', p:'Extrae y analiza los efectos adversos y las complicaciones reportadas en el paper.'},
+  {h:'Módulo 7 — Gráficas', p:'Si se sube el PDF, la IA lee las imágenes, identifica el tipo de gráfico (Kaplan-Meier, forest plot, box plot) y explica qué muestra cada resultado visual.'},
+  {h:'Módulo 8 — Resumen (SmartSummary)', p:'Genera un resumen estructurado del artículo en el idioma que elijas: español, portugués o inglés. Preserva las recomendaciones con su clase y nivel de evidencia cuando aplica.'},
+  {h:'Módulo 9 — Conflicto de intereses', p:'Analiza el financiamiento del estudio, las afiliaciones de los autores y las declaraciones de conflicto de interés.'},
+  {h:'Módulo 10 — Score de confianza', p:'Sintetiza todos los módulos en un número del 1 al 10 que representa la confiabilidad metodológica general del paper.'}
+]},
+{ icon:'🔍', t:'Búsqueda en PubMed', b:[
+  {p:'EvidenceSmart tiene una búsqueda integrada con la API de NCBI (PubMed).'},
+  {h:'Cómo funciona', p:'Escribí los términos de búsqueda en el campo de PubMed —por ejemplo «fibrinolysis STEMI pharmacoinvasive»—, hacé clic en «Buscar» y la app consulta PubMed en tiempo real. Los resultados muestran título, autores, revista, año y PMID.'},
+  {h:'Cómo leer los resultados', p:'El PMID (PubMed ID) es el identificador único de cada artículo y es el dato más importante para verificar que el artículo existe. Al hacer clic en el PMID se abre el artículo directamente en PubMed.'},
+  {nota:'Los artículos que aparecen en la búsqueda de PubMed son REALES porque vienen de la base de datos de NCBI. En cambio, las referencias que la IA genera en el análisis pueden contener errores: cruzalas siempre con la búsqueda de PubMed antes de citar.'}
+]},
+{ icon:'🎯', t:'Formulación PICO', b:[
+  {p:'La formulación PICO es la forma estándar de plantear una pregunta clínica en investigación.'},
+  {h:'Las 4 componentes', ul:[
+    'P = Población: quiénes son los pacientes del estudio.',
+    'I = Intervención: qué se está evaluando o aplicando.',
+    'C = Comparador: con qué se compara la intervención.',
+    'O = Outcome o desenlace: qué se mide como resultado.']},
+  {h:'Cómo se genera en EvidenceSmart', p:'Al analizar un paper, la app genera automáticamente el PICO del estudio extrayéndolo del texto.'},
+  {h:'Cómo usarlo', p:'El PICO generado se puede copiar con el botón correspondiente y pegarlo directamente en ThesiSmart para formular la pregunta de investigación de tu tesis o monografía.'},
+  {ej:'Paper STREAM-2 → P: pacientes con IAMCEST de menos de 3 horas de síntomas sin acceso a angioplastia en menos de 1 hora / I: fibrinólisis farmacoinvasiva con tenecteplase / C: angioplastia primaria / O: punto combinado de muerte, reinfarto, shock y fallo cardíaco a 30 días.'}
+]},
+{ icon:'🟢', t:'Matriz de coincidencia', b:[
+  {p:'La matriz de coincidencia permite comparar los hallazgos de tu propia práctica o laboratorio —exportados desde CeiboAnalytics— con lo que reporta la literatura científica analizada.'},
+  {h:'Cómo funciona', p:'Con el contexto de investigación cargado desde CeiboAnalytics, al analizar un paper la IA compara automáticamente las características de tu población con las del estudio.'},
+  {h:'Cómo leer el semáforo', ul:[
+    '🟢 Verde = alta coincidencia: los resultados del paper son probablemente extrapolables a tu práctica.',
+    '🟡 Amarillo = coincidencia parcial: hay diferencias importantes a considerar antes de aplicar las conclusiones.',
+    '🔴 Rojo = baja coincidencia: las poblaciones son tan distintas que las conclusiones del paper no aplican directamente a tu contexto.']},
+  {ej:'Si tu laboratorio tiene una FEVI promedio de 55% (función conservada) y analizás un paper sobre tratamiento en miocardiopatía dilatada con FEVI menor a 35%, la matriz marcará 🔴 porque las poblaciones son incompatibles.'}
+]},
+{ icon:'📊', t:'Comparador de papers', b:[
+  {p:'El comparador permite analizar dos papers sobre el mismo tema y ver sus diferencias metodológicas y de resultados lado a lado.'},
+  {h:'Cuándo usar 1 paper', p:'Cuando querés el análisis completo y profundo de un solo artículo. Es el modo principal de EvidenceSmart.'},
+  {h:'Cuándo usar 2 papers', p:'Cuando dos estudios sobre el mismo tema llegaron a conclusiones distintas y querés entender por qué. El caso clásico es COAPT contra MitraFR: dos estudios sobre reparación mitral percutánea en insuficiencia mitral funcional con resultados opuestos, explicados por diferencias en la selección de pacientes.'},
+  {h:'Cómo funciona', p:'Cargá el primer paper (texto o PDF), después el segundo, y hacé clic en «Comparar». La app genera una tabla comparativa de población, diseño, intervención, resultados y conclusiones, e identifica las diferencias clave que explican los distintos resultados.'}
+]},
+{ icon:'📥', t:'Exportar informe', b:[
+  {p:'Al hacer clic en «Exportar informe» se genera un archivo completo con todos los módulos analizados.'},
+  {h:'Qué incluye', ul:[
+    'Encabezado con título del paper, revista y fecha de análisis.',
+    'Resultados de cada módulo activado con sus semáforos.',
+    'Score de confianza final.',
+    'Resumen SmartSummary, si fue generado.',
+    'Formulación PICO, si está disponible.',
+    'Disclaimer médico-legal.']},
+  {ej:'El informe es ideal para presentar en journal clubs, ateneos, o como documentación de lectura crítica en programas de residencia.'}
+]},
+{ icon:'🔗', t:'Integración con CeiboMed', b:[
+  {p:'EvidenceSmart está diseñado para funcionar en un flujo integrado con las otras apps de CeiboMed. El flujo completo es:'},
+  {ul:[
+    'Paso 1 — CeiboAnalytics genera el análisis estadístico de tu laboratorio: FEVI promedio, distribución de patologías, comparación con literatura.',
+    'Paso 2 — Exportar desde CeiboAnalytics el resumen en texto o markdown.',
+    'Paso 3 — Pegar ese resumen en el campo «Contexto de investigación» de EvidenceSmart.',
+    'Paso 4 — Analizar el paper que corresponde al tema de tu investigación. La IA compara tu población real con la del paper.',
+    'Paso 5 — Usar la búsqueda de PubMed para encontrar papers adicionales sobre el mismo tema.',
+    'Paso 6 — Copiar el PICO generado y pegarlo en ThesiSmart para formular la pregunta de tu monografía o tesis.',
+    'Paso 7 — Exportar el informe de EvidenceSmart como documentación de lectura crítica para adjuntar a la tesis.']},
+  {p:'Este flujo convierte datos clínicos reales en evidencia contextualizada, lista para presentar académicamente.'}
+]}
+];
+
+function renderManual(){
+  const cont = document.getElementById('manual-acc');
+  /* El guard mira el CONTENIDO y no un flag: atado a dataset.listo, cualquier código futuro
+     que vacíe el contenedor lo dejaba en '1' y el manual quedaba en blanco el resto de la
+     sesión, sin error en consola. */
+  if (!cont || cont.childElementCount) return;   // se arma una sola vez
+  const el = (tag, cls, txt) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt != null) e.textContent = txt;
+    return e;
+  };
+  MANUAL_DATA.forEach((sec, i) => {
+    const acc = el('div', 'man-acc');
+    acc.dataset.abierto = '0';
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'man-acc-head';
+    head.setAttribute('aria-expanded', 'false');
+    head.setAttribute('aria-controls', 'man-body-' + i);
+    head.appendChild(el('span', 'man-acc-icon', sec.icon));
+    head.appendChild(el('span', 'man-acc-t', sec.t));
+    head.appendChild(el('span', 'man-caret', '▶'));
+    head.addEventListener('click', () => {
+      const abierto = acc.dataset.abierto === '1';
+      acc.dataset.abierto = abierto ? '0' : '1';
+      head.setAttribute('aria-expanded', abierto ? 'false' : 'true');
+    });
+
+    const body = el('div', 'man-acc-body');
+    body.id = 'man-body-' + i;
+    (sec.b || []).forEach(bl => {
+      if (bl.h)     body.appendChild(el('div', 'man-h', bl.h));
+      if (bl.p)     body.appendChild(el('p', null, bl.p));
+      if (bl.ul)    { const ul = el('ul', 'man-ul'); bl.ul.forEach(x => ul.appendChild(el('li', null, x))); body.appendChild(ul); }
+      if (bl.nota)  body.appendChild(el('div', 'man-nota', '⚠️ ' + bl.nota));
+      if (bl.ej)    body.appendChild(el('div', 'man-ej', '💡 ' + bl.ej));
+    });
+
+    acc.appendChild(head); acc.appendChild(body);
+    cont.appendChild(acc);
+  });
+}
+
+/* El pie se escribe al IMPRIMIR y no al construir el manual: dentro del render quedaba con la
+   fecha del primer render de la sesión, así que una pestaña abierta desde la tarde e impresa
+   pasada la medianoche fechaba el PDF el día anterior. Y la fecha se arma a mano en vez de
+   con toLocaleDateString: el PDF se comparte y la fecha es dato médico-legal, así que no
+   puede depender de qué locales tenga instalado el navegador —sin datos de es-UY, un runtime
+   con ICU recortado devuelve 09/01 para el 1 de setiembre—. */
+function manualPie(){
+  const pie = document.getElementById('manual-pie');
+  if (!pie) return;
+  const d = new Date();
+  const f = String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+  pie.textContent = '© 2026 Dr. M. D. S. y col. · CeiboMed — EvidenceSmart · Generado el ' + f;
+}
+
+/* Descarga = imprimir a PDF. La app no carga ningún recurso externo (lo dice la CSP y el
+   comentario de cabecera), así que no hay jsPDF ni la va a haber por esto: el diálogo del
+   navegador genera un PDF real sin agregar una sola dependencia. La hoja @media print abre
+   los once acordeones — sin eso el PDF salía con once títulos y ningún contenido. */
+function imprimirManual(){
+  if (ST.modActivo !== 'manual') goTo('manual');
+  renderManual();
+  manualPie();
+  /* Si el manual no se armó, NO se imprime: window.print() habría producido un PDF con
+     encabezado, pie y nada en el medio, que es un archivo que parece correcto hasta que se
+     abre. Mejor no entregar nada y decirlo. */
+  const cont = document.getElementById('manual-acc');
+  if (!cont || !cont.childElementCount) {
+    alert('El manual no se pudo preparar para imprimir. Recargá la página e intentá de nuevo.');
+    return;
+  }
+  window.print();
 }
 
 // ══════════════════════════════════════════════
